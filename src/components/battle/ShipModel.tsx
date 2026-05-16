@@ -10,6 +10,9 @@ interface ShipModelProps {
   scale?: number
   engineGlow?: boolean
   isEnemy?: boolean
+  shieldActive?: boolean
+  shieldFacing?: number
+  shieldArc?: number
 }
 
 export function ShipModel({
@@ -19,10 +22,13 @@ export function ShipModel({
   scale = 1,
   engineGlow = true,
   isEnemy = false,
+  shieldActive = false,
+  shieldFacing = 0,
+  shieldArc = 150,
 }: ShipModelProps) {
   const hullColor = isEnemy ? '#ff4444' : shape.color
 
-  const { outline, bridgeGeo, engineGeos, noseStyle } = useMemo(() => {
+  const { outline, bridgeGeo, engineGeos, noseStyle, depthCurve, maxDepthPos } = useMemo(() => {
     return generateShipShape(shape.template, shape.seed, shape.length, shape.width)
   }, [shape.template, shape.seed, shape.length, shape.width])
 
@@ -39,6 +45,20 @@ export function ShipModel({
 
   const engineGlowColor = isEnemy ? '#ff4422' : shape.color
   const bridgeColor = isEnemy ? '#cc2222' : '#334466'
+
+  const shieldGeometry = useMemo(() => {
+    const outerRadius = shape.width * 0.85
+    const innerRadius = shape.width * 0.7
+    const halfArcRad = (shieldArc / 2) * (Math.PI / 180)
+    return new THREE.RingGeometry(
+      innerRadius,
+      outerRadius,
+      32,
+      1,
+      -halfArcRad,
+      shieldArc * (Math.PI / 180),
+    )
+  }, [shape.width, shieldArc])
 
   // Engine positions based on count
   const enginePositions = useMemo(() => {
@@ -60,6 +80,36 @@ export function ShipModel({
       <mesh geometry={hullGeometry}>
         <meshStandardMaterial color={hullColor} flatShading metalness={0.15} roughness={0.65} />
       </mesh>
+
+      {/* Shield arc — faces shieldFacing direction */}
+      {shieldActive && (
+        <mesh
+          position={[shape.length * 0.25, 0, 0.12]}
+          rotation={[0, 0, shieldFacing - rotation]}
+          geometry={shieldGeometry}
+        >
+          <meshBasicMaterial
+            color="#4488ff"
+            transparent
+            opacity={0.25}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
+      {/* Armor plate: raised mid-section for 3D depth variation */}
+      {depthCurve[1] > 0.6 && (
+        <mesh position={[maxDepthPos, 0, 0.22]}>
+          <boxGeometry args={[shape.length * 0.45, shape.width * 0.45, depthCurve[1] * 0.25]} />
+          <meshStandardMaterial
+            color={hullColor}
+            flatShading
+            metalness={0.2}
+            roughness={0.55}
+          />
+        </mesh>
+      )}
 
       {/* Bridge / cockpit */}
       <mesh position={[shape.length * 0.2, 0, 0.3]} geometry={bridgeGeo}>
@@ -88,11 +138,23 @@ export function ShipModel({
         <meshStandardMaterial color="#000000" flatShading opacity={0.2} transparent />
       </mesh>
 
-      {/* Engine glows */}
+      {/* Engine glows with outer ring */}
       {engineGlow && enginePositions.map((ep, i) => (
-        <mesh key={i} position={ep} geometry={engineGeos[i]}>
-          <meshBasicMaterial color={engineGlowColor} transparent opacity={0.6} />
-        </mesh>
+        <group key={i} position={ep}>
+          <mesh geometry={engineGeos[i]}>
+            <meshBasicMaterial color={engineGlowColor} transparent opacity={0.6} />
+          </mesh>
+          {/* Outer glow ring */}
+          <mesh rotation={[0, 0, 0]}>
+            <ringGeometry args={[0.08, 0.15, 8]} />
+            <meshBasicMaterial
+              color={engineGlowColor}
+              transparent
+              opacity={0.2}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
       ))}
 
       {/* Nose detail for forked nose */}

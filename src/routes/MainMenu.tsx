@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePlayerStore } from '../store/playerStore'
 import { listSaves, loadGame, deleteSave } from '../db'
+import { ShipSelect } from '../components/ui/ShipSelect'
+import { MenuFlyby } from '../components/ui/MenuFlyby'
 import type { PlayerShip } from '../types'
 
 export function MainMenu() {
@@ -9,6 +11,7 @@ export function MainMenu() {
   const { setFleet, setWarehouse, setCredits, setFuel, setStarMapSeed, loadState } = usePlayerStore()
 
   const [showLoad, setShowLoad] = useState(false)
+  const [showShipSelect, setShowShipSelect] = useState(false)
   const [saves, setSaves] = useState<Awaited<ReturnType<typeof listSaves>>>([])
 
   const refreshSaves = async () => {
@@ -20,15 +23,11 @@ export function MainMenu() {
   }, [showLoad])
 
   const handleNewGame = () => {
-    const starterShip: PlayerShip = {
-      hullId: 'hammerhead',
-      name: '阿尔法号',
-      mountedWeapons: { w1: 'heavy_ac', w2: 'assault_gun', w3: 'light_ac', w4: 'light_ac', m1: 'sabot' },
-      installedMods: ['hardened_shields'],
-      currentHp: 4000,
-      currentArmor: 500,
-    }
-    setFleet([starterShip])
+    setShowShipSelect(true)
+  }
+
+  const handleShipSelected = (ship: PlayerShip) => {
+    setFleet([ship])
     setWarehouse([
       { id: crypto.randomUUID(), type: 'weapon', itemId: 'light_ac', quantity: 2 },
       { id: crypto.randomUUID(), type: 'weapon', itemId: 'pulse_laser', quantity: 2 },
@@ -37,18 +36,23 @@ export function MainMenu() {
     setCredits(5000)
     setFuel(100)
     setStarMapSeed(Math.floor(Math.random() * 1000000))
+    setShowShipSelect(false)
     navigate('/starmap')
   }
 
   const handleContinue = async () => {
-    const all = await listSaves()
-    if (all.length > 0) {
-      const state = await loadGame(all[0].id)
-      if (state) {
-        loadState(state)
-        navigate('/starmap')
-        return
+    try {
+      const all = await listSaves()
+      if (all.length > 0) {
+        const state = await loadGame(all[0].id)
+        if (state) {
+          loadState(state)
+          navigate('/starmap')
+          return
+        }
       }
+    } catch {
+      // IndexedDB unavailable or corrupt — fall through to new game
     }
     handleNewGame()
   }
@@ -68,8 +72,9 @@ export function MainMenu() {
   }
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-[var(--color-space-bg)]">
-      <div className="text-center">
+    <div className="flex h-full w-full items-center justify-center bg-[var(--color-space-bg)] relative">
+      <MenuFlyby />
+      <div className="text-center relative z-10">
         <h1 className="text-5xl font-bold text-[var(--color-accent)] mb-2 tracking-widest">
           STARSECTOR
         </h1>
@@ -97,6 +102,14 @@ export function MainMenu() {
           </button>
         </div>
       </div>
+
+      {/* Ship selection screen */}
+      {showShipSelect && (
+        <ShipSelect
+          onSelect={handleShipSelected}
+          onBack={() => setShowShipSelect(false)}
+        />
+      )}
 
       {/* Load game modal */}
       {showLoad && (

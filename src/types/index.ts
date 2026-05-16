@@ -40,7 +40,7 @@ export interface ShipStats {
   crewCapacity: number
 }
 
-export type HullTemplate = 'arrow' | 'wedge' | 'brick' | 'needle' | 'crescent'
+export type HullTemplate = 'arrow' | 'wedge' | 'brick' | 'needle' | 'crescent' | 'hammerhead' | 'split' | 'lance'
 
 export interface HullShapeParams {
   template: HullTemplate
@@ -147,6 +147,8 @@ export interface BattleShipSnapshot {
   shieldActive: boolean
   shieldFacing: number
   alive: boolean
+  hullShape?: HullShapeParams // override for randomized enemy appearances
+  missileAmmo: Record<string, number> // weaponId -> remaining shots
 }
 
 export interface BattleProjectile {
@@ -157,6 +159,7 @@ export interface BattleProjectile {
   damage: number
   damageType: DamageType
   sourceShipId: string
+  targetShipId?: string // for missile homing
 }
 
 export interface BattleEvent {

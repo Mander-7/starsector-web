@@ -29,15 +29,19 @@ export function BattleCanvas({ currentTick }: BattleCanvasProps) {
       {ships.map((ship) => {
         const hull = shipData.find((s) => s.id === ship.hullId)
         if (!hull) return null
+        const shape = ship.hullShape ?? hull.hullShape
         return (
           <ShipModel
             key={ship.id}
-            shape={hull.hullShape}
+            shape={shape}
             position={[ship.position[0], ship.position[1], 0]}
             rotation={ship.rotation}
             scale={0.9}
             engineGlow={ship.alive}
             isEnemy={!ship.isPlayer}
+            shieldActive={ship.shieldActive}
+            shieldFacing={ship.shieldFacing}
+            shieldArc={hull.baseStats.shieldArc}
           />
         )
       })}

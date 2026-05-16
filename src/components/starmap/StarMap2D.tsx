@@ -17,6 +17,18 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
+  const [prevNodeId, setPrevNodeId] = useState(currentNodeId)
+  const [travelAnim, setTravelAnim] = useState(false)
+
+  // Trigger travel animation when node changes
+  useEffect(() => {
+    if (currentNodeId !== prevNodeId) {
+      setTravelAnim(true)
+      setPrevNodeId(currentNodeId)
+      const t = setTimeout(() => setTravelAnim(false), 700)
+      return () => clearTimeout(t)
+    }
+  }, [currentNodeId, prevNodeId])
   const dragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0 })
   const panStart = useRef({ x: 0, y: 0 })
@@ -164,7 +176,7 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
               top: sy - size,
               width: size * 2,
               height: size * 2,
-              zIndex: isCurrent ? 10 : isSelected ? 5 : 1,
+              zIndex: isSelected ? 5 : 1,
             }}
             onClick={(e) => {
               e.stopPropagation()
@@ -173,19 +185,6 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
             onMouseEnter={() => setHoveredNode(node.id)}
             onMouseLeave={() => setHoveredNode(null)}
           >
-            {isCurrent && (
-              <div
-                className="absolute rounded-full animate-pulse"
-                style={{
-                  width: size * 2.4,
-                  height: size * 2.4,
-                  left: -size * 0.2,
-                  top: -size * 0.2,
-                  border: '2px solid var(--color-accent, #4488ff)',
-                  opacity: 0.6,
-                }}
-              />
-            )}
             {isSelected && (
               <div
                 className="absolute rounded-full"
@@ -227,6 +226,52 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
           </div>
         )
       })}
+
+      {/* Fleet marker — separate animated overlay above all nodes */}
+      {(() => {
+        const cn = nodes.find((n) => n.id === currentNodeId)
+        if (!cn) return null
+        const [fx, fy] = toScreen(cn.position[0], cn.position[1])
+        const markerSize = 28
+        return (
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: fx - markerSize,
+              top: fy - markerSize - 14,
+              width: markerSize * 2,
+              height: markerSize * 2,
+              zIndex: 20,
+              transition: travelAnim
+                ? 'left 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), top 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+                : 'none',
+            }}
+          >
+            <svg width={markerSize * 2} height={markerSize * 2} viewBox="-16 -16 32 32" style={{ overflow: 'visible' }}>
+              {/* Pulsing ring */}
+              <circle cx="0" cy="-2" r="14" fill="none" stroke="#4488ff" strokeWidth="2" opacity="0.3">
+                <animate attributeName="r" values="12;16;12" dur="2s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.3;0.05;0.3" dur="2s" repeatCount="indefinite" />
+              </circle>
+              {/* Ship triangle */}
+              <polygon
+                points="0,-12 -8,6 0,2 8,6"
+                fill="#3377dd"
+                stroke="#88ccff"
+                strokeWidth="1.5"
+                opacity={0.95}
+              />
+              {/* Center highlight */}
+              <circle cx="0" cy="-3" r="3" fill="#88ccff" opacity={0.6} />
+              {/* Engine pulses */}
+              <circle cx="0" cy="5" r="2.5" fill="#88ccff" opacity={0.7}>
+                <animate attributeName="r" values="2;4;2" dur="0.8s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.7;0.1;0.7" dur="0.8s" repeatCount="indefinite" />
+              </circle>
+            </svg>
+          </div>
+        )
+      })()}
 
       <div className="absolute bottom-2 left-2 flex gap-3 text-[10px] text-[var(--color-text-dim)] bg-black/40 px-2 py-1 rounded">
         <span className="flex items-center gap-1">

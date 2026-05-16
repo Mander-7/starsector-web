@@ -7,7 +7,8 @@ export function useAutoSave(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return
-    const state = {
+
+    const buildState = () => ({
       credits,
       fleet: JSON.parse(JSON.stringify(fleet)),
       warehouse: JSON.parse(JSON.stringify(warehouse)),
@@ -15,10 +16,14 @@ export function useAutoSave(enabled: boolean) {
       currentStationId,
       fuel,
       starMapSeed,
-    }
+    })
+
+    // Save immediately on mount so there's always a save to continue
+    saveGame('autosave', '自动存档', buildState())
+
     const timer = setInterval(() => {
-      saveGame('autosave', '自动存档', state)
-    }, 30000) // auto-save every 30s
+      saveGame('autosave', '自动存档', buildState())
+    }, 30000)
     return () => clearInterval(timer)
   }, [enabled, credits, fleet, warehouse, currentSystemId, currentStationId, fuel, starMapSeed])
 }

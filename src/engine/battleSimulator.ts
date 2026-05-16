@@ -7,6 +7,8 @@ import type {
   PlayerShip,
   Weapon,
   LootDrop,
+  HullTemplate,
+  HullShapeParams,
 } from '../types'
 import { ships } from '../data/ships'
 import { weapons as weaponData } from '../data/weapons'
@@ -16,10 +18,28 @@ import { dist, angleTo } from '../utils/math'
 const MAX_TICKS = 600
 const BATTLE_HALF = 10
 
+const ALL_TEMPLATES: HullTemplate[] = ['arrow', 'wedge', 'brick', 'needle', 'crescent', 'hammerhead', 'split', 'lance']
+const SHIP_COLORS = ['#ff8844', '#44ddff', '#ff6644', '#44aaff', '#ffaa44', '#6688cc', '#cc6644', '#88aadd']
+
+function randomEnemyShape(): HullShapeParams {
+  return {
+    template: ALL_TEMPLATES[Math.floor(Math.random() * ALL_TEMPLATES.length)],
+    seed: Math.floor(Math.random() * 9999),
+    length: 3.5 + Math.random() * 6.5,
+    width: 1.2 + Math.random() * 3.2,
+    noseWidth: 0,
+    engineWidth: 0,
+    wings: Math.random() * 0.4,
+    color: SHIP_COLORS[Math.floor(Math.random() * SHIP_COLORS.length)],
+  }
+}
+
 function cloneShip(s: BattleShipSnapshot): BattleShipSnapshot {
   return {
     ...s,
     position: [s.position[0], s.position[1]] as [number, number],
+    hullShape: s.hullShape ? { ...s.hullShape } : undefined,
+    missileAmmo: { ...s.missileAmmo },
   }
 }
 
@@ -29,6 +49,12 @@ function cloneProjectile(p: BattleProjectile): BattleProjectile {
     position: [p.position[0], p.position[1]] as [number, number],
     velocity: [p.velocity[0], p.velocity[1]] as [number, number],
   }
+}
+
+const MISSILE_AMMO = { harpoon: 6, sabot: 8, reaper: 2, annihilator: 12 }
+
+function getMissileAmmo(weaponId: string): number {
+  return MISSILE_AMMO[weaponId as keyof typeof MISSILE_AMMO] ?? 5
 }
 
 function createSnapshot(
@@ -57,6 +83,13 @@ export function simulateBattle(
   const playerShips: BattleShipSnapshot[] = playerFleet.map((ps, i) => {
     const hull = ships.find((s) => s.id === ps.hullId)!
     const spreadX = (i - (playerFleet.length - 1) / 2) * 3
+    const missileAmmo: Record<string, number> = {}
+    for (const weaponId of Object.values(ps.mountedWeapons)) {
+      if (weaponId) {
+        const w = weaponData.find((x) => x.id === weaponId)
+        if (w && w.type === 'Missile') missileAmmo[weaponId] = getMissileAmmo(weaponId)
+      }
+    }
     return {
       id: `p_${i}`,
       name: ps.name,
@@ -73,6 +106,8 @@ export function simulateBattle(
       shieldActive: true,
       shieldFacing: Math.PI / 2,
       alive: true,
+      hullShape: hull.hullShape,
+      missileAmmo,
     }
   })
 
@@ -80,6 +115,15 @@ export function simulateBattle(
   const enemyShips: BattleShipSnapshot[] = enemyHullIds.map((hid, i) => {
     const hull = ships.find((s) => s.id === hid)!
     const spreadX = (i - (enemyHullIds.length - 1) / 2) * 3
+    const missileAmmo: Record<string, number> = {}
+    for (const slot of hull.weaponSlots) {
+      const compatible = weaponData.find(
+        (w) => w.size === slot.size && (slot.type === 'Universal' || w.type === slot.type),
+      )
+      if (compatible && compatible.type === 'Missile') {
+        missileAmmo[compatible.id] = getMissileAmmo(compatible.id)
+      }
+    }
     return {
       id: `e_${i}`,
       name: hull.name,
@@ -96,6 +140,8 @@ export function simulateBattle(
       shieldActive: true,
       shieldFacing: -Math.PI / 2,
       alive: true,
+      hullShape: randomEnemyShape(),
+      missileAmmo,
     }
   })
 
@@ -170,24 +216,39 @@ export function simulateBattle(
             playerCooldowns[i].set(w.id, cd - 1)
             continue
           }
+          // Check missile ammo
+          if (w.type === 'Missile') {
+            const ammo = self.missileAmmo[w.id] ?? 0
+            if (ammo <= 0) continue
+            self.missileAmmo[w.id] = ammo - 1
+          }
+          const isMissile = w.type === 'Missile'
           // Target random position on enemy ship body (±1 unit around its center)
           const tx = target.position[0] + (Math.random() - 0.5) * 2.5
           const ty = target.position[1] + (Math.random() - 0.5) * 2.5
           const baseAngle = angleTo([self.position[0], self.position[1]], [tx, ty])
           const spread = (1 - w.accuracy) * 0.3
           const a = baseAngle + (Math.random() - 0.5) * spread
-          const speed = 8 / 20
+          const missileSpeed = isMissile ? 0.35 : 8 / 20
+          // Missiles fire from side of ship, perpendicular to facing
+          const facingDir = self.rotation
+          const sideOffset = isMissile ? (Math.random() > 0.5 ? 1 : -1) * (1.0 + Math.random() * 0.8) : 0
+          const spawnX = self.position[0] + Math.cos(facingDir) * 0.6 + Math.cos(facingDir + Math.PI / 2) * sideOffset
+          const spawnY = self.position[1] + Math.sin(facingDir) * 0.6 + Math.sin(facingDir + Math.PI / 2) * sideOffset
+          // Missile initial velocity: upward arc then toward target
+          const velAngle = isMissile ? facingDir + (Math.random() - 0.5) * 0.6 : a
           projectiles.push({
             id: `proj_${pid++}`,
             type: w.type,
-            position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
-            velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
+            position: [spawnX, spawnY],
+            velocity: [Math.cos(velAngle) * missileSpeed, Math.sin(velAngle) * missileSpeed],
             damage: w.damage,
             damageType: w.damageType,
             sourceShipId: self.id,
+            targetShipId: isMissile ? target.id : undefined,
           })
           self.flux += w.fluxPerShot
-          playerCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
+          playerCooldowns[i].set(w.id, w.type === 'Missile' ? Math.round(200 / w.fireRate) : Math.round(600 / w.fireRate))
         }
       }
     }
@@ -219,23 +280,35 @@ export function simulateBattle(
             enemyCooldowns[i].set(w.id, cd - 1)
             continue
           }
+          if (w.type === 'Missile') {
+            const ammo = self.missileAmmo[w.id] ?? 0
+            if (ammo <= 0) continue
+            self.missileAmmo[w.id] = ammo - 1
+          }
+          const isMissile = w.type === 'Missile'
           const tx = target.position[0] + (Math.random() - 0.5) * 2.5
           const ty = target.position[1] + (Math.random() - 0.5) * 2.5
           const baseAngle = angleTo([self.position[0], self.position[1]], [tx, ty])
           const spread = (1 - w.accuracy) * 0.3
           const a = baseAngle + (Math.random() - 0.5) * spread
-          const speed = 8 / 20
+          const missileSpeed = isMissile ? 0.35 : 8 / 20
+          const facingDir = self.rotation
+          const sideOffset = isMissile ? (Math.random() > 0.5 ? 1 : -1) * (1.0 + Math.random() * 0.8) : 0
+          const spawnX = self.position[0] + Math.cos(facingDir) * 0.6 + Math.cos(facingDir + Math.PI / 2) * sideOffset
+          const spawnY = self.position[1] + Math.sin(facingDir) * 0.6 + Math.sin(facingDir + Math.PI / 2) * sideOffset
+          const velAngle = isMissile ? facingDir + (Math.random() - 0.5) * 0.6 : a
           projectiles.push({
             id: `proj_${pid++}`,
             type: w.type,
-            position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
-            velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
+            position: [spawnX, spawnY],
+            velocity: [Math.cos(velAngle) * missileSpeed, Math.sin(velAngle) * missileSpeed],
             damage: w.damage,
             damageType: w.damageType,
             sourceShipId: self.id,
+            targetShipId: isMissile ? target.id : undefined,
           })
           self.flux += w.fluxPerShot
-          enemyCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
+          enemyCooldowns[i].set(w.id, w.type === 'Missile' ? Math.round(200 / w.fireRate) : Math.round(600 / w.fireRate))
         }
       }
     }
@@ -243,6 +316,30 @@ export function simulateBattle(
     // === Move projectiles & check hits ===
     const aliveProjectiles: BattleProjectile[] = []
     for (const proj of projectiles) {
+      // Missile homing: steer toward target with increasing speed
+      if (proj.type === 'Missile' && proj.targetShipId) {
+        const allShips = [...playerShips, ...enemyShips]
+        const target = allShips.find((s) => s.id === proj.targetShipId && s.alive)
+        if (target) {
+          const ta = angleTo(
+            [proj.position[0], proj.position[1]],
+            [target.position[0], target.position[1]],
+          )
+          const curSpeed = Math.sqrt(proj.velocity[0] ** 2 + proj.velocity[1] ** 2) || 0.35
+          // Accelerate gradually up to max speed
+          const maxSpeed = 0.55
+          const newSpeed = Math.min(curSpeed + 0.003, maxSpeed)
+          // Steer toward target
+          const steerStrength = 0.07
+          proj.velocity[0] += Math.cos(ta) * steerStrength
+          proj.velocity[1] += Math.sin(ta) * steerStrength
+          // Re-normalize
+          const currentMag = Math.sqrt(proj.velocity[0] ** 2 + proj.velocity[1] ** 2)
+          proj.velocity[0] = (proj.velocity[0] / currentMag) * newSpeed
+          proj.velocity[1] = (proj.velocity[1] / currentMag) * newSpeed
+        }
+      }
+
       proj.position[0] += proj.velocity[0]
       proj.position[1] += proj.velocity[1]
 
@@ -252,62 +349,86 @@ export function simulateBattle(
 
       let hit = false
       const allShips = [...playerShips, ...enemyShips]
+
+      // Phase 1: check shield hits (larger bubble radius)
       for (const ship of allShips) {
         if (!ship.alive) continue
         if (ship.id === proj.sourceShipId) continue
+        if (!ship.shieldActive) continue
+
+        const shipHull = ships.find((s) => s.id === ship.hullId)
+        const shieldArc = shipHull?.baseStats.shieldArc ?? 150
+        const shieldRadius = 2.2 // shield bubble extends well beyond hull
+
         const d = dist(
           [proj.position[0], proj.position[1]],
           [ship.position[0], ship.position[1]],
         )
-        if (d < 1.5) {
-          const shipHull = ships.find((s) => s.id === ship.hullId)
-          const shieldEff = shipHull?.baseStats.shieldEfficiency ?? 0.8
-          const shieldArc = shipHull?.baseStats.shieldArc ?? 150
-          const a = angleTo(
-            [ship.position[0], ship.position[1]],
-            [proj.position[0], proj.position[1]],
-          )
-          let diff = a - ship.shieldFacing
-          while (diff > Math.PI) diff -= Math.PI * 2
-          while (diff < -Math.PI) diff += Math.PI * 2
+        if (d >= shieldRadius) continue
 
-          const hitsShield =
-            ship.shieldActive && Math.abs(diff) < (shieldArc / 360) * Math.PI
+        const a = angleTo(
+          [ship.position[0], ship.position[1]],
+          [proj.position[0], proj.position[1]],
+        )
+        let diff = a - ship.shieldFacing
+        while (diff > Math.PI) diff -= Math.PI * 2
+        while (diff < -Math.PI) diff += Math.PI * 2
 
-          let actualDamage: number
-          if (hitsShield) {
-            const shieldMult = proj.damageType === 'Kinetic' ? 2 :
-              proj.damageType === 'HighExplosive' ? 0.5 :
-              proj.damageType === 'Fragmentation' ? 0.25 : 1
-            ship.flux += proj.damage * shieldMult * shieldEff
-            actualDamage = 0
-            events.push({ tick, type: 'shieldHit', position: [...proj.position] as [number, number], shipId: ship.id })
-          } else {
-            const armorMult = proj.damageType === 'HighExplosive' ? 2 :
-              proj.damageType === 'Kinetic' ? 0.5 :
-              proj.damageType === 'Fragmentation' ? 0.25 : 1
-            if (ship.armor > 0) {
-              const armorReduction = ship.armor / (ship.armor + proj.damage)
-              actualDamage = proj.damage * armorMult * (1 - armorReduction)
-              ship.armor -= proj.damage * armorMult * 0.15
-              if (ship.armor < 0) ship.armor = 0
-            } else {
-              actualDamage = proj.damage * armorMult
-            }
-            ship.hp -= actualDamage
-            events.push({ tick, type: 'hit', position: [...proj.position] as [number, number], shipId: ship.id, damage: Math.round(actualDamage) })
-          }
+        if (Math.abs(diff) >= (shieldArc / 360) * Math.PI) continue
 
-          if (ship.hp <= 0) {
-            ship.hp = 0
-            ship.alive = false
-            events.push({ tick, type: 'explosion', position: [...ship.position] as [number, number], shipId: ship.id })
-            events.push({ tick, type: 'kill', position: [...ship.position] as [number, number], shipId: ship.id })
-          }
+        // Projectile hit the shield!
+        const shieldEff = shipHull?.baseStats.shieldEfficiency ?? 0.8
+        const shieldMult = proj.damageType === 'Kinetic' ? 2 :
+          proj.damageType === 'HighExplosive' ? 0.5 :
+          proj.damageType === 'Fragmentation' ? 0.25 : 1
+        ship.flux += proj.damage * shieldMult * shieldEff
 
-          hit = true
-          break
+        // VFX at the shield boundary
+        const vfxX = ship.position[0] + Math.cos(a) * shieldRadius
+        const vfxY = ship.position[1] + Math.sin(a) * shieldRadius
+        events.push({ tick, type: 'shieldHit', position: [vfxX, vfxY] as [number, number], shipId: ship.id })
+
+        hit = true
+        break
+      }
+
+      if (hit) continue
+
+      // Phase 2: check hull hits (tighter radius, no shield or wrong angle)
+      for (const ship of allShips) {
+        if (!ship.alive) continue
+        if (ship.id === proj.sourceShipId) continue
+
+        const d = dist(
+          [proj.position[0], proj.position[1]],
+          [ship.position[0], ship.position[1]],
+        )
+        if (d >= 1.2) continue
+
+        const armorMult = proj.damageType === 'HighExplosive' ? 2 :
+          proj.damageType === 'Kinetic' ? 0.5 :
+          proj.damageType === 'Fragmentation' ? 0.25 : 1
+        let actualDamage: number
+        if (ship.armor > 0) {
+          const armorReduction = ship.armor / (ship.armor + proj.damage)
+          actualDamage = proj.damage * armorMult * (1 - armorReduction)
+          ship.armor -= proj.damage * armorMult * 0.15
+          if (ship.armor < 0) ship.armor = 0
+        } else {
+          actualDamage = proj.damage * armorMult
         }
+        ship.hp -= actualDamage
+        events.push({ tick, type: 'hit', position: [...proj.position] as [number, number], shipId: ship.id, damage: Math.round(actualDamage) })
+
+        if (ship.hp <= 0) {
+          ship.hp = 0
+          ship.alive = false
+          events.push({ tick, type: 'explosion', position: [...ship.position] as [number, number], shipId: ship.id })
+          events.push({ tick, type: 'kill', position: [...ship.position] as [number, number], shipId: ship.id })
+        }
+
+        hit = true
+        break
       }
 
       if (!hit) {
