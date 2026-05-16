@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BattleCanvas } from '../components/battle/BattleCanvas'
 import { BattleHUD } from '../components/battle/BattleHUD'
@@ -12,8 +12,8 @@ export function BattleScreen() {
   const addCredits = usePlayerStore((s) => s.addCredits)
   const addToWarehouse = usePlayerStore((s) => s.addToWarehouse)
 
-  // Enemy
-  const enemyHulls = ['hammerhead']
+  // Enemy — stable reference to avoid re-simulating every render
+  const enemyHulls = useMemo(() => ['hammerhead'], [])
 
   // Simulate battle (pure logic, memoized)
   const result = useBattleSim(fleet, enemyHulls)

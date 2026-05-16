@@ -17,6 +17,21 @@ import { dist, angleTo } from '../utils/math'
 const MAX_TICKS = 600 // 60 seconds max
 const BATTLE_SIZE = 20
 
+function cloneShip(s: BattleShipSnapshot): BattleShipSnapshot {
+  return {
+    ...s,
+    position: [s.position[0], s.position[1]] as [number, number],
+  }
+}
+
+function cloneProjectile(p: BattleProjectile): BattleProjectile {
+  return {
+    ...p,
+    position: [p.position[0], p.position[1]] as [number, number],
+    velocity: [p.velocity[0], p.velocity[1]] as [number, number],
+  }
+}
+
 function createSnapshot(
   playerShips: BattleShipSnapshot[],
   enemyShips: BattleShipSnapshot[],
@@ -27,11 +42,11 @@ function createSnapshot(
   return {
     tick,
     ships: [
-      ...playerShips.map((s) => ({ ...s })),
-      ...enemyShips.map((s) => ({ ...s })),
+      ...playerShips.map(cloneShip),
+      ...enemyShips.map(cloneShip),
     ],
-    projectiles: [...projectiles.map((p) => ({ ...p, velocity: [p.velocity[0], p.velocity[1]] as [number, number] }))],
-    events: [...events],
+    projectiles: projectiles.map(cloneProjectile),
+    events: events.map((e) => ({ ...e, position: [e.position[0], e.position[1]] as [number, number] })),
   }
 }
 

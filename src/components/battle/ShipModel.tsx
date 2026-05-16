@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { HullShapeParams } from '../../types'
 
@@ -19,8 +19,6 @@ export function ShipModel({
   engineGlow = true,
   isEnemy = false,
 }: ShipModelProps) {
-  const meshRef = useRef<THREE.Group>(null)
-
   const color = isEnemy ? '#ff4444' : shape.color
 
   const hullGeometry = useMemo(() => {
@@ -61,12 +59,8 @@ export function ShipModel({
 
   const engineGeo = useMemo(() => new THREE.BoxGeometry(0.3, (shape.width / 2) * 0.5, 0.2), [shape])
 
-  if (meshRef.current) {
-    meshRef.current.rotation.z = rotation
-  }
-
   return (
-    <group ref={meshRef} position={position} scale={scale} rotation={[0, 0, rotation]}>
+    <group position={position} scale={scale} rotation={[0, 0, rotation]}>
       {/* Hull */}
       <mesh geometry={hullGeometry}>
         <meshStandardMaterial color={color} flatShading />
