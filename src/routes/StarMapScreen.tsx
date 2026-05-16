@@ -72,7 +72,7 @@ export function StarMapScreen() {
     const saveName = `存档 ${allSaves.length + 1} - ${currentNode?.name ?? '未知'}`
     await saveGame(saveId, saveName, {
       credits, fleet, warehouse,
-      currentSystemId, currentStationId: null, fuel,
+      currentSystemId, currentStationId: null, fuel, starMapSeed,
     })
     setShowSaveConfirm(true)
     setTimeout(() => setShowSaveConfirm(false), 2000)

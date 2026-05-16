@@ -6,7 +6,7 @@ import type { PlayerShip } from '../types'
 
 export function MainMenu() {
   const navigate = useNavigate()
-  const { setFleet, setWarehouse, setCredits, setFuel, setCurrentSystem, setStarMapSeed, loadState } = usePlayerStore()
+  const { setFleet, setWarehouse, setCredits, setFuel, setStarMapSeed, loadState } = usePlayerStore()
 
   const [showLoad, setShowLoad] = useState(false)
   const [saves, setSaves] = useState<Awaited<ReturnType<typeof listSaves>>>([])
