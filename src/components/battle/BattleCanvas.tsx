@@ -59,7 +59,7 @@ export function BattleCanvas({ currentTick }: BattleCanvasProps) {
             shape={hull.hullShape}
             position={[ship.position[0], ship.position[1], 0]}
             rotation={ship.rotation}
-            scale={1.2}
+            scale={0.9}
             engineGlow={ship.alive}
             isEnemy={!ship.isPlayer}
           />
