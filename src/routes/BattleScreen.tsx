@@ -84,6 +84,7 @@ export function BattleScreen() {
       <BattleHUD
         ships={allShips}
         tick={currentTick?.tick ?? 0}
+        projectileCount={currentTick?.projectiles.length ?? 0}
         speed={speed}
         paused={paused}
         onSpeedChange={handleSpeedChange}

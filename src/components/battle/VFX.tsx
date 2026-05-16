@@ -1,6 +1,3 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
 import type { BattleProjectile, BattleEvent, WeaponType } from '../../types'
 
 const projColors: Record<WeaponType, string> = {
@@ -14,43 +11,69 @@ interface ProjectileVFXProps {
 }
 
 export function ProjectileVFX({ projectiles }: ProjectileVFXProps) {
-  const meshRef = useRef<THREE.InstancedMesh>(null)
-
-  const geo = useMemo(() => new THREE.SphereGeometry(0.25, 6, 6), [])
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffffff' }), [])
-
-  // Track colors per instance
-  const colorObj = useMemo(() => new THREE.Color(), [])
-  const colors = useMemo(() => {
-    const arr = new Float32Array(100 * 3)
-    return new THREE.InstancedBufferAttribute(arr, 3)
-  }, [])
-
-  useFrame(() => {
-    if (!meshRef.current) return
-    const count = Math.min(projectiles.length, 100)
-    const dummy = new THREE.Object3D()
-    for (let i = 0; i < count; i++) {
-      const p = projectiles[i]
-      dummy.position.set(p.position[0], p.position[1], 0.2)
-      dummy.scale.set(1, 1, 1)
-      dummy.updateMatrix()
-      meshRef.current.setMatrixAt(i, dummy.matrix)
-      const c = projColors[p.type] ?? '#ffffff'
-      colorObj.set(c)
-      colorObj.toArray(colors.array, i * 3)
-    }
-    meshRef.current.count = count
-    meshRef.current.instanceMatrix.needsUpdate = true
-    meshRef.current.geometry.setAttribute('instanceColor', colors)
-    ;(meshRef.current.instanceColor as THREE.InstancedBufferAttribute | null)?.needsUpdate && true
-  })
-
   if (projectiles.length === 0) return null
 
-  return <instancedMesh ref={meshRef} args={[geo, mat, 100]} />
+  return (
+    <>
+      {projectiles.map((p) => {
+        const color = projColors[p.type] ?? '#ffffff'
+        // Compute tail: from current position backward along velocity
+        const speed = Math.sqrt(p.velocity[0] ** 2 + p.velocity[1] ** 2) || 1
+        const normX = p.velocity[0] / speed
+        const normY = p.velocity[1] / speed
+        const tailLength = p.type === 'Energy' ? 1.5 : 0.6
+
+        return (
+          <group key={p.id}>
+            {/* Projectile core glow */}
+            <mesh position={[p.position[0], p.position[1], 0.5]}>
+              <sphereGeometry args={[p.type === 'Missile' ? 0.35 : 0.22, 8, 8]} />
+              <meshBasicMaterial color={color} />
+            </mesh>
+            {/* Outer glow */}
+            <mesh position={[p.position[0], p.position[1], 0.45]}>
+              <sphereGeometry args={[p.type === 'Missile' ? 0.55 : 0.35, 6, 6]} />
+              <meshBasicMaterial color={color} transparent opacity={0.3} depthWrite={false} />
+            </mesh>
+            {/* Trail line at projectile midpoint, aligned with velocity */}
+            <mesh
+              position={[p.position[0] - normX * tailLength / 2, p.position[1] - normY * tailLength / 2, 0.4]}
+              rotation={[0, 0, Math.atan2(p.velocity[1], p.velocity[0])]}
+            >
+              <planeGeometry args={[tailLength, p.type === 'Energy' ? 0.08 : 0.04]} />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={p.type === 'Energy' ? 0.7 : 0.35}
+                depthWrite={false}
+                side={2}
+              />
+            </mesh>
+          </group>
+        )
+      })}
+    </>
+  )
 }
 
+// ---- Battle ready line when weapons are about to fire ----
+interface ReadyGlowProps {
+  position: [number, number]
+  color: string
+  active: boolean
+}
+
+export function ReadyGlow({ position, color, active }: ReadyGlowProps) {
+  if (!active) return null
+  return (
+    <mesh position={[position[0], position[1], 0.2]}>
+      <ringGeometry args={[0.6, 0.8, 16]} />
+      <meshBasicMaterial color={color} transparent opacity={0.3} depthWrite={false} />
+    </mesh>
+  )
+}
+
+// ---- Explosion / hit effects ----
 interface ExplosionVFXProps {
   events: BattleEvent[]
   tick: number
@@ -64,25 +87,41 @@ const colorMap: Record<string, string> = {
 }
 
 export function ExplosionVFX({ events, tick }: ExplosionVFXProps) {
-  const recentEvents = events.filter((e) => Math.abs(e.tick - tick) < 10)
-  if (recentEvents.length === 0) return null
+  const recent = events.filter((e) => Math.abs(e.tick - tick) < 12)
+  if (recent.length === 0) return null
 
   return (
     <>
-      {recentEvents.map((e, i) => {
-        const size = e.type === 'explosion' || e.type === 'kill' ? 1.2 : 0.5
+      {recent.map((e, i) => {
         const age = Math.abs(e.tick - tick)
-        const fade = 1 - age / 10
+        const fade = Math.max(0, 1 - age / 12)
+        const baseSize = e.type === 'explosion' || e.type === 'kill' ? 1.2 : 0.5
+        const size = baseSize * (1 + age * 0.3) // expand over time
+
         return (
-          <mesh key={`${e.tick}-${i}`} position={[e.position[0], e.position[1], 0.3]}>
-            <sphereGeometry args={[size, 8, 8]} />
-            <meshBasicMaterial
-              color={colorMap[e.type] ?? '#fff'}
-              transparent
-              opacity={Math.max(0, fade * 0.8)}
-              depthWrite={false}
-            />
-          </mesh>
+          <group key={`${e.tick}-${i}`}>
+            {/* Flash sphere */}
+            <mesh position={[e.position[0], e.position[1], 0.6]}>
+              <sphereGeometry args={[size, 8, 8]} />
+              <meshBasicMaterial
+                color={colorMap[e.type] ?? '#fff'}
+                transparent
+                opacity={fade * 0.7}
+                depthWrite={false}
+              />
+            </mesh>
+            {/* Ring blast wave */}
+            <mesh position={[e.position[0], e.position[1], 0.5]}>
+              <ringGeometry args={[size * 0.8, size * 1.3, 16]} />
+              <meshBasicMaterial
+                color={colorMap[e.type] ?? '#fff'}
+                transparent
+                opacity={fade * 0.4}
+                depthWrite={false}
+                side={2}
+              />
+            </mesh>
+          </group>
         )
       })}
     </>
