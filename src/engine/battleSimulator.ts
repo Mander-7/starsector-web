@@ -202,10 +202,11 @@ export function simulateBattle(
               projectiles.push({
                 id: `proj_${pid++}`,
                 type: w.type,
-                position: [self.position[0], self.position[1]],
+                position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
                 velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
                 damage: w.damage,
                 damageType: w.damageType,
+                sourceShipId: self.id,
               })
               self.flux += w.fluxPerShot
               playerCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
@@ -264,10 +265,11 @@ export function simulateBattle(
               projectiles.push({
                 id: `proj_${pid++}`,
                 type: w.type,
-                position: [self.position[0], self.position[1]],
+                position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
                 velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
                 damage: w.damage,
                 damageType: w.damageType,
+                sourceShipId: self.id,
               })
               self.flux += w.fluxPerShot
               enemyCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
@@ -288,10 +290,11 @@ export function simulateBattle(
         continue
       }
 
-      // Check hit on all alive ships
+      // Check hit on all alive ships (skip the firing ship)
       let hit = false
       for (const ship of allShips) {
         if (!ship.alive) continue
+        if (ship.id === proj.sourceShipId) continue
         const d = dist(
           [proj.position[0], proj.position[1]],
           [ship.position[0], ship.position[1]],

@@ -151,6 +151,7 @@ export interface BattleProjectile {
   velocity: [number, number]
   damage: number
   damageType: DamageType
+  sourceShipId: string
 }
 
 export interface BattleEvent {
