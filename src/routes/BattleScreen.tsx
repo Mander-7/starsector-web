@@ -6,6 +6,13 @@ import { useBattleSim } from '../hooks/useBattleSim'
 import { usePlayerStore } from '../store/playerStore'
 import type { TickSnapshot, BattleShipSnapshot } from '../types'
 
+function lerpAngle(a: number, b: number, t: number): number {
+  let diff = b - a
+  while (diff > Math.PI) diff -= Math.PI * 2
+  while (diff < -Math.PI) diff += Math.PI * 2
+  return a + diff * t
+}
+
 function interpolateShip(a: BattleShipSnapshot, b: BattleShipSnapshot | undefined, t: number): BattleShipSnapshot {
   if (!b || t <= 0) return a
   return {
@@ -14,7 +21,7 @@ function interpolateShip(a: BattleShipSnapshot, b: BattleShipSnapshot | undefine
       a.position[0] + (b.position[0] - a.position[0]) * t,
       a.position[1] + (b.position[1] - a.position[1]) * t,
     ] as [number, number],
-    rotation: a.rotation + (b.rotation - a.rotation) * t,
+    rotation: lerpAngle(a.rotation, b.rotation, t),
   }
 }
 

@@ -89,13 +89,13 @@ export function StarMapScreen() {
           菜单
         </button>
         <span className="text-[10px] sm:text-xs text-[var(--color-text-dim)] truncate max-w-20 sm:max-w-none">
-          {currentNode?.name ?? '未知'}
+          📍 {currentNode?.name ?? '未知'}
         </span>
-        <span className="text-[10px] sm:text-xs text-[var(--color-warning)] whitespace-nowrap">
-          ⛽ {fuel}
+        <span className="text-[10px] sm:text-xs text-[var(--color-warning)] whitespace-nowrap" title="消耗于星系间航行">
+          燃料 {fuel}
         </span>
         <span className="text-[10px] sm:text-xs text-[var(--color-accent)] whitespace-nowrap">
-          💰 ${credits.toLocaleString()}
+          信用点 ${credits.toLocaleString()}
         </span>
         <div className="flex-1" />
         <button
@@ -133,7 +133,12 @@ export function StarMapScreen() {
       {selectedNode && (
         <div className="flex items-center gap-3 p-2 sm:p-3 bg-black/60 border-t border-[var(--color-panel-border)] shrink-0">
           <div className="min-w-0">
-            <div className="text-xs sm:text-sm text-[var(--color-text)] truncate">{selectedNode.name}</div>
+            <div className="text-xs sm:text-sm text-[var(--color-text)] truncate">
+              {selectedNode.name}
+              {selectedNode.id === currentSystemId && (
+                <span className="text-[10px] text-[var(--color-accent)] ml-2">当前位置</span>
+              )}
+            </div>
             <div className="text-[9px] sm:text-[10px] text-[var(--color-text-dim)] truncate">
               {selectedNode.type} · 危险 {selectedNode.dangerLevel}
             </div>
