@@ -40,12 +40,16 @@ export interface ShipStats {
   crewCapacity: number
 }
 
+export type HullTemplate = 'arrow' | 'wedge' | 'brick' | 'needle' | 'crescent'
+
 export interface HullShapeParams {
+  template: HullTemplate
+  seed: number // 0 = fully random
   length: number
   width: number
   noseWidth: number
   engineWidth: number
-  wings: number // 0-1 wing size
+  wings: number
   color: string
 }
 

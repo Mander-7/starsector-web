@@ -28,7 +28,7 @@ export const ships: ShipHull[] = [
     ],
     builtinMods: [],
     opLimit: 55,
-    hullShape: { length: 5, width: 1.8, noseWidth: 0.6, engineWidth: 1.4, wings: 0.3, color: '#ff8844' },
+    hullShape: { template: 'needle', seed: 1, length: 5, width: 1.8, noseWidth: 0.6, engineWidth: 1.4, wings: 0.3, color: '#ff8844' },
   },
   {
     id: 'tempest',
@@ -55,7 +55,7 @@ export const ships: ShipHull[] = [
     ],
     builtinMods: [],
     opLimit: 55,
-    hullShape: { length: 4.5, width: 1.5, noseWidth: 0.4, engineWidth: 1.2, wings: 0.5, color: '#44ddff' },
+    hullShape: { template: 'crescent', seed: 2, length: 4.5, width: 1.5, noseWidth: 0.4, engineWidth: 1.2, wings: 0.5, color: '#44ddff' },
   },
   // ===== Destroyers =====
   {
@@ -85,7 +85,7 @@ export const ships: ShipHull[] = [
     ],
     builtinMods: [],
     opLimit: 100,
-    hullShape: { length: 7, width: 3, noseWidth: 1.8, engineWidth: 2.2, wings: 0.2, color: '#ff8844' },
+    hullShape: { template: 'arrow', seed: 3, length: 7, width: 3, noseWidth: 1.8, engineWidth: 2.2, wings: 0.2, color: '#ff8844' },
   },
   {
     id: 'medusa',
@@ -113,7 +113,7 @@ export const ships: ShipHull[] = [
     ],
     builtinMods: [],
     opLimit: 100,
-    hullShape: { length: 6.5, width: 2.5, noseWidth: 0.8, engineWidth: 2, wings: 0.6, color: '#44ddff' },
+    hullShape: { template: 'crescent', seed: 4, length: 6.5, width: 2.5, noseWidth: 0.8, engineWidth: 2, wings: 0.6, color: '#44ddff' },
   },
   // ===== Cruiser =====
   {
@@ -145,6 +145,6 @@ export const ships: ShipHull[] = [
     ],
     builtinMods: [],
     opLimit: 160,
-    hullShape: { length: 9, width: 4, noseWidth: 1.2, engineWidth: 3, wings: 0.3, color: '#ff8844' },
+    hullShape: { template: 'arrow', seed: 5, length: 9, width: 4, noseWidth: 1.2, engineWidth: 3, wings: 0.3, color: '#ff8844' },
   },
 ]

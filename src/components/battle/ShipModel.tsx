@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import { generateShipShape } from '../../engine/shipShapeGenerator'
 import type { HullShapeParams } from '../../types'
 
 interface ShipModelProps {
@@ -19,84 +20,93 @@ export function ShipModel({
   engineGlow = true,
   isEnemy = false,
 }: ShipModelProps) {
-  const color = isEnemy ? '#ff4444' : shape.color
+  const hullColor = isEnemy ? '#ff4444' : shape.color
+
+  const { outline, bridgeGeo, engineGeos, noseStyle } = useMemo(() => {
+    return generateShipShape(shape.template, shape.seed, shape.length, shape.width)
+  }, [shape.template, shape.seed, shape.length, shape.width])
 
   const hullGeometry = useMemo(() => {
-    const { length, width, noseWidth, engineWidth, wings } = shape
-    const hl = length / 2
-    const hw = width / 2
-    const nw = (noseWidth / 2) || hw * 0.3
-    const ew = (engineWidth / 2) || hw * 0.7
-
-    const outline = new THREE.Shape()
-    // Nose
-    outline.moveTo(hl, 0)
-    // Nose → widest shoulder (noseWidth controls shoulder taper)
-    outline.lineTo(hl * 0.7, nw)
-    outline.lineTo(hl * 0.3, hw)
-    // Mid section
-    outline.lineTo(-hl * 0.1, hw)
-    // Wing (if any)
-    if (wings > 0) {
-      outline.lineTo(-hl * 0.05, hw * (1 + wings * 0.3))
-      outline.lineTo(-hl * 0.35, hw * (1 + wings * 0.25))
-    }
-    // Engine housing
-    outline.lineTo(-hl * 0.4, ew)
-    outline.lineTo(-hl * 0.75, ew)
-    // Engine exhaust
-    outline.lineTo(-hl * 0.9, ew * 0.6)
-    outline.lineTo(-hl, ew * 0.3)
-    // Bottom half (symmetric)
-    outline.lineTo(-hl, -ew * 0.3)
-    outline.lineTo(-hl * 0.9, -ew * 0.6)
-    outline.lineTo(-hl * 0.75, -ew)
-    outline.lineTo(-hl * 0.4, -ew)
-    if (wings > 0) {
-      outline.lineTo(-hl * 0.35, -hw * (1 + wings * 0.25))
-      outline.lineTo(-hl * 0.05, -hw * (1 + wings * 0.3))
-    }
-    outline.lineTo(-hl * 0.1, -hw)
-    outline.lineTo(hl * 0.3, -hw)
-    outline.lineTo(hl * 0.7, -hw * 0.4)
-    outline.closePath()
-
-    const extrudeSettings: THREE.ExtrudeGeometryOptions = {
+    return new THREE.ExtrudeGeometry(outline, {
       steps: 1,
       depth: 0.35 * scale,
       bevelEnabled: true,
       bevelThickness: 0.1,
       bevelSize: 0.06,
       bevelSegments: 2,
+    })
+  }, [outline, scale])
+
+  const engineGlowColor = isEnemy ? '#ff4422' : shape.color
+  const bridgeColor = isEnemy ? '#cc2222' : '#334466'
+
+  // Engine positions based on count
+  const enginePositions = useMemo(() => {
+    const hl = shape.length / 2
+    const count = engineGeos.length
+    const spacing = shape.width * 0.12
+    const positions: [number, number, number][] = []
+    for (let i = 0; i < count; i++) {
+      const x = -hl + 0.25
+      const y = (i - (count - 1) / 2) * spacing * 2
+      positions.push([x, y, 0.15])
     }
-    return new THREE.ExtrudeGeometry(outline, extrudeSettings)
-  }, [shape, scale])
-
-  const glowMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: '#44ddff', transparent: true, opacity: 0.5 }),
-    [],
-  )
-
-  const engineWidth2 = ((shape.engineWidth || shape.width * 0.7) / 2)
+    return positions
+  }, [engineGeos.length, shape.length, shape.width])
 
   return (
     <group position={position} scale={scale} rotation={[0, 0, rotation]}>
       {/* Hull */}
       <mesh geometry={hullGeometry}>
-        <meshStandardMaterial color={color} flatShading metalness={0.3} roughness={0.7} />
+        <meshStandardMaterial color={hullColor} flatShading metalness={0.15} roughness={0.65} />
       </mesh>
 
-      {/* Cockpit / bridge bump */}
-      <mesh position={[shape.length * 0.25, 0, 0.3]}>
-        <boxGeometry args={[shape.length * 0.12, shape.width * 0.2, 0.12]} />
-        <meshStandardMaterial color={isEnemy ? '#cc2222' : '#334466'} flatShading />
+      {/* Bridge / cockpit */}
+      <mesh position={[shape.length * 0.2, 0, 0.3]} geometry={bridgeGeo}>
+        <meshStandardMaterial color={bridgeColor} flatShading />
       </mesh>
 
-      {/* Engine glow */}
-      {engineGlow && (
-        <mesh position={[-shape.length / 2 + 0.15, 0, 0.15]} material={glowMat}>
-          <boxGeometry args={[0.25, engineWidth2 * 0.4, 0.18]} />
+      {/* Split bridge: second instance for crescent */}
+      {shape.template === 'crescent' && (
+        <mesh position={[shape.length * 0.22, shape.width * 0.12, 0.22]}>
+          <boxGeometry args={[shape.length * 0.06, shape.width * 0.06, 0.1]} />
+          <meshStandardMaterial color={bridgeColor} flatShading />
         </mesh>
+      )}
+
+      {/* Panel lines: thin strips on hull surface */}
+      <mesh position={[shape.length * 0.1, 0, 0.22]} rotation={[0, 0, 0]}>
+        <boxGeometry args={[shape.length * 0.5, 0.04, 0.02]} />
+        <meshStandardMaterial color="#000000" flatShading opacity={0.25} transparent />
+      </mesh>
+      <mesh position={[shape.length * -0.15, shape.width * 0.25, 0.2]} rotation={[0, 0, 0.5]}>
+        <boxGeometry args={[shape.length * 0.3, 0.03, 0.02]} />
+        <meshStandardMaterial color="#000000" flatShading opacity={0.2} transparent />
+      </mesh>
+      <mesh position={[shape.length * -0.15, -shape.width * 0.25, 0.2]} rotation={[0, 0, -0.5]}>
+        <boxGeometry args={[shape.length * 0.3, 0.03, 0.02]} />
+        <meshStandardMaterial color="#000000" flatShading opacity={0.2} transparent />
+      </mesh>
+
+      {/* Engine glows */}
+      {engineGlow && enginePositions.map((ep, i) => (
+        <mesh key={i} position={ep} geometry={engineGeos[i]}>
+          <meshBasicMaterial color={engineGlowColor} transparent opacity={0.6} />
+        </mesh>
+      ))}
+
+      {/* Nose detail for forked nose */}
+      {noseStyle === 'forked' && (
+        <group>
+          <mesh position={[shape.length / 2 - 0.3, shape.width * 0.06, 0.12]}>
+            <boxGeometry args={[0.35, 0.04, 0.03]} />
+            <meshStandardMaterial color={hullColor} flatShading />
+          </mesh>
+          <mesh position={[shape.length / 2 - 0.3, -shape.width * 0.06, 0.12]}>
+            <boxGeometry args={[0.35, 0.04, 0.03]} />
+            <meshStandardMaterial color={hullColor} flatShading />
+          </mesh>
+        </group>
       )}
     </group>
   )
