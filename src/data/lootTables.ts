@@ -18,6 +18,8 @@ export const lootTables: LootTable[] = [
       { drop: { type: 'weapon', itemId: 'light_ac', amount: 1 }, weight: 30 },
       { drop: { type: 'weapon', itemId: 'pulse_laser', amount: 1 }, weight: 20 },
       { drop: { type: 'hullmod', itemId: 'hardened_shields', amount: 1 }, weight: 10 },
+      { drop: { type: 'fuel', amount: 20 }, weight: 60 },
+      { drop: { type: 'fuel', amount: 40 }, weight: 30 },
     ],
   },
   {
@@ -32,6 +34,8 @@ export const lootTables: LootTable[] = [
       { drop: { type: 'weapon', itemId: 'harpoon', amount: 2 }, weight: 20 },
       { drop: { type: 'hullmod', itemId: 'flux_distributor', amount: 1 }, weight: 15 },
       { drop: { type: 'hullmod', itemId: 'safety_overrides', amount: 1 }, weight: 10 },
+      { drop: { type: 'fuel', amount: 30 }, weight: 50 },
+      { drop: { type: 'fuel', amount: 60 }, weight: 25 },
     ],
   },
 ]

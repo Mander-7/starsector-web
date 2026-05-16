@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import type { StarNode } from '../../types'
 
 const PADDING = 60
@@ -30,29 +30,71 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
     if (n.position[0] > maxX) maxX = n.position[0]
     if (n.position[1] > maxY) maxY = n.position[1]
   }
+
   const toScreen = (x: number, y: number): [number, number] => [
     (x - minX + PADDING / SCALE) * SCALE * zoom + pan.x,
     (y - minY + PADDING / SCALE) * SCALE * zoom + pan.y,
   ]
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return
+  // Auto-zoom to fit all nodes on mount
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || nodes.length === 0) return
+    const rect = el.getBoundingClientRect()
+    const worldW = maxX - minX + (PADDING * 2) / SCALE
+    const worldH = maxY - minY + (PADDING * 2) / SCALE
+    const fitZoom = Math.min(rect.width / (worldW * SCALE), rect.height / (worldH * SCALE), 2)
+    setZoom(Math.max(0.3, fitZoom))
+    // Center the map
+    const cx = (minX + maxX) / 2
+    const cy = (minY + maxY) / 2
+    const newSX = (cx - minX + PADDING / SCALE) * SCALE * fitZoom
+    const newSY = (cy - minY + PADDING / SCALE) * SCALE * fitZoom
+    setPan({ x: rect.width / 2 - newSX, y: rect.height / 2 - newSY })
+  }, [nodes.length])
+
+  const startDrag = useCallback((clientX: number, clientY: number) => {
     dragging.current = true
-    dragStart.current = { x: e.clientX, y: e.clientY }
+    dragStart.current = { x: clientX, y: clientY }
     panStart.current = { ...pan }
   }, [pan])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const moveDrag = useCallback((clientX: number, clientY: number) => {
     if (!dragging.current) return
     setPan({
-      x: panStart.current.x + (e.clientX - dragStart.current.x),
-      y: panStart.current.y + (e.clientY - dragStart.current.y),
+      x: panStart.current.x + (clientX - dragStart.current.x),
+      y: panStart.current.y + (clientY - dragStart.current.y),
     })
   }, [])
 
-  const handleMouseUp = useCallback(() => {
+  const endDrag = useCallback(() => {
     dragging.current = false
   }, [])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    startDrag(e.clientX, e.clientY)
+  }, [startDrag])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    moveDrag(e.clientX, e.clientY)
+  }, [moveDrag])
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      startDrag(e.touches[0].clientX, e.touches[0].clientY)
+    }
+  }, [startDrag])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      moveDrag(e.touches[0].clientX, e.touches[0].clientY)
+    }
+  }, [moveDrag])
+
+  const handleTouchEnd = useCallback(() => {
+    endDrag()
+  }, [endDrag])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
@@ -74,12 +116,15 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
     <div
       ref={containerRef}
       className="w-full h-full overflow-hidden bg-[#0a0a1a] cursor-grab active:cursor-grabbing select-none relative"
+      style={{ userSelect: 'none', touchAction: 'none' }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onMouseUp={endDrag}
+      onMouseLeave={endDrag}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onWheel={handleWheel}
-      style={{ userSelect: 'none' }}
     >
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -128,7 +173,6 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
             onMouseEnter={() => setHoveredNode(node.id)}
             onMouseLeave={() => setHoveredNode(null)}
           >
-            {/* Glow ring for current location */}
             {isCurrent && (
               <div
                 className="absolute rounded-full animate-pulse"
@@ -142,7 +186,6 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
                 }}
               />
             )}
-            {/* Selection ring for selected (non-current) node */}
             {isSelected && (
               <div
                 className="absolute rounded-full"
@@ -155,7 +198,6 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
                 }}
               />
             )}
-            {/* Node circle */}
             <div
               className="rounded-full transition-all duration-150"
               style={{
@@ -170,7 +212,6 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
                 opacity: isHovered ? 1 : 0.85,
               }}
             />
-            {/* Label */}
             <span
               className="text-[10px] whitespace-nowrap mt-1 transition-opacity"
               style={{
@@ -187,7 +228,6 @@ export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeC
         )
       })}
 
-      {/* Legend */}
       <div className="absolute bottom-2 left-2 flex gap-3 text-[10px] text-[var(--color-text-dim)] bg-black/40 px-2 py-1 rounded">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-[#ffaa22] inline-block" /> 恒星

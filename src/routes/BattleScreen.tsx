@@ -4,16 +4,15 @@ import { BattleCanvas } from '../components/battle/BattleCanvas'
 import { BattleHUD } from '../components/battle/BattleHUD'
 import { useBattleSim } from '../hooks/useBattleSim'
 import { usePlayerStore } from '../store/playerStore'
-import type { TickSnapshot, BattleShipSnapshot } from '../types'
+import type { TickSnapshot, BattleShipSnapshot, BattleProjectile } from '../types'
 
 function getEnemiesForDanger(danger: number): string[] {
-  // Danger 1-4: frigates, 5-7: destroyers, 8-9: cruiser, 10: multi-ship
   if (danger <= 2) return ['wolf']
   if (danger <= 4) return ['tempest']
   if (danger <= 6) return ['hammerhead']
   if (danger <= 7) return ['medusa']
   if (danger <= 9) return ['eagle']
-  return ['hammerhead', 'wolf'] // danger 10: two enemies
+  return ['hammerhead', 'wolf']
 }
 
 function lerpAngle(a: number, b: number, t: number): number {
@@ -35,12 +34,61 @@ function interpolateShip(a: BattleShipSnapshot, b: BattleShipSnapshot | undefine
   }
 }
 
+const SNAPSHOT_INTERVAL = 5
+
+function lerpProj(a: BattleProjectile, b: BattleProjectile | undefined, t: number): BattleProjectile {
+  if (b) {
+    // Exists in both snapshots → linear interpolate
+    return {
+      ...a,
+      position: [
+        a.position[0] + (b.position[0] - a.position[0]) * t,
+        a.position[1] + (b.position[1] - a.position[1]) * t,
+      ] as [number, number],
+    }
+  }
+  // Only in current snapshot (destroyed before next) → extrapolate forward
+  return {
+    ...a,
+    position: [
+      a.position[0] + a.velocity[0] * t * SNAPSHOT_INTERVAL,
+      a.position[1] + a.velocity[1] * t * SNAPSHOT_INTERVAL,
+    ] as [number, number],
+  }
+}
+
 function lerpSnapshots(current: TickSnapshot, next: TickSnapshot | null, t: number): TickSnapshot {
   if (!next || t <= 0.001) return current
+
+  // Interpolate projectiles from current → next
+  const projMap = new Map(current.projectiles.map((p) => [p.id, p]))
+  const nextMap = new Map(next.projectiles.map((p) => [p.id, p]))
+
+  const interpolated: BattleProjectile[] = []
+
+  // Projectiles in current snapshot
+  for (const p of current.projectiles) {
+    interpolated.push(lerpProj(p, nextMap.get(p.id), t))
+  }
+
+  // Projectiles only in next snapshot (created between snapshots)
+  for (const np of next.projectiles) {
+    if (!projMap.has(np.id)) {
+      // Extrapolate backward: where was it when it spawned?
+      interpolated.push({
+        ...np,
+        position: [
+          np.position[0] - np.velocity[0] * (1 - t) * SNAPSHOT_INTERVAL,
+          np.position[1] - np.velocity[1] * (1 - t) * SNAPSHOT_INTERVAL,
+        ] as [number, number],
+      })
+    }
+  }
+
   return {
     tick: current.tick,
     ships: current.ships.map((s) => interpolateShip(s, next.ships.find((ns) => ns.id === s.id), t)),
-    projectiles: current.projectiles,
+    projectiles: interpolated,
     events: current.events,
   }
 }
@@ -50,6 +98,7 @@ export function BattleScreen() {
   const [searchParams] = useSearchParams()
   const fleet = usePlayerStore((s) => s.fleet)
   const addCredits = usePlayerStore((s) => s.addCredits)
+  const addFuel = usePlayerStore((s) => s.addFuel)
   const addToWarehouse = usePlayerStore((s) => s.addToWarehouse)
 
   const danger = Number(searchParams.get('danger') ?? 1)
@@ -117,6 +166,8 @@ export function BattleScreen() {
       for (const drop of result.loot) {
         if (drop.type === 'credits') {
           addCredits(drop.amount)
+        } else if (drop.type === 'fuel') {
+          addFuel(drop.amount)
         } else {
           addToWarehouse({
             id: crypto.randomUUID(),
@@ -127,7 +178,7 @@ export function BattleScreen() {
         }
       }
     }
-  }, [ended, lootCollected, result, addCredits, addToWarehouse])
+  }, [ended, lootCollected, result, addCredits, addFuel, addToWarehouse])
 
   const handleRetreat = () => {
     navigate('/starmap')
@@ -179,8 +230,10 @@ export function BattleScreen() {
                   {result.loot.map((d, i) => (
                     <p key={i} className="text-[var(--color-warning)]">
                       {d.type === 'credits'
-                        ? `$${d.amount.toLocaleString()}`
-                        : `${d.type} x${d.amount}`}
+                        ? `$ ${d.amount.toLocaleString()}`
+                        : d.type === 'fuel'
+                          ? `Fuel +${d.amount}`
+                          : `${d.type} x${d.amount}`}
                     </p>
                   ))}
                 </div>

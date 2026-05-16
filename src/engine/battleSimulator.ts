@@ -11,11 +11,10 @@ import type {
 import { ships } from '../data/ships'
 import { weapons as weaponData } from '../data/weapons'
 import { lootTables } from '../data/lootTables'
-import { runShipAI } from './shipAI'
 import { dist, angleTo } from '../utils/math'
 
-const MAX_TICKS = 600 // 60 seconds max
-const BATTLE_SIZE = 20
+const MAX_TICKS = 600
+const BATTLE_HALF = 10
 
 function cloneShip(s: BattleShipSnapshot): BattleShipSnapshot {
   return {
@@ -50,25 +49,21 @@ function createSnapshot(
   }
 }
 
-function getWeaponRange(weapon: Weapon): number {
-  // Scale: game range units to battle coordinates
-  return (weapon.range / 100) * 1.5
-}
-
 export function simulateBattle(
   playerFleet: PlayerShip[],
   enemyHullIds: string[],
 ): BattleResult {
-  // Initialize snapshots
+  // Player ships at bottom center, facing up
   const playerShips: BattleShipSnapshot[] = playerFleet.map((ps, i) => {
     const hull = ships.find((s) => s.id === ps.hullId)!
+    const spreadX = (i - (playerFleet.length - 1) / 2) * 3
     return {
       id: `p_${i}`,
       name: ps.name,
       hullId: ps.hullId,
       isPlayer: true,
-      position: [-3.5 + i * 3, 0],
-      rotation: 0,
+      position: [spreadX, -4],
+      rotation: Math.PI / 2,
       hp: ps.currentHp,
       maxHp: hull.baseStats.hp,
       armor: ps.currentArmor,
@@ -76,20 +71,22 @@ export function simulateBattle(
       flux: 0,
       maxFlux: hull.baseStats.fluxCapacity,
       shieldActive: true,
-      shieldFacing: 0,
+      shieldFacing: Math.PI / 2,
       alive: true,
     }
   })
 
+  // Enemy ships at top center, facing down
   const enemyShips: BattleShipSnapshot[] = enemyHullIds.map((hid, i) => {
     const hull = ships.find((s) => s.id === hid)!
+    const spreadX = (i - (enemyHullIds.length - 1) / 2) * 3
     return {
       id: `e_${i}`,
       name: hull.name,
       hullId: hid,
       isPlayer: false,
-      position: [3.5 - i * 3, 0],
-      rotation: Math.PI,
+      position: [spreadX, 4],
+      rotation: -Math.PI / 2,
       hp: hull.baseStats.hp,
       maxHp: hull.baseStats.hp,
       armor: hull.baseStats.armor,
@@ -97,7 +94,7 @@ export function simulateBattle(
       flux: 0,
       maxFlux: hull.baseStats.fluxCapacity,
       shieldActive: true,
-      shieldFacing: Math.PI,
+      shieldFacing: -Math.PI / 2,
       alive: true,
     }
   })
@@ -106,7 +103,7 @@ export function simulateBattle(
   const replay: TickSnapshot[] = []
   let pid = 0
 
-  // Build weapon maps for each ship
+  // Build weapon maps
   const playerWeaponMaps: Map<string, Weapon[]>[] = playerFleet.map((ps) => {
     const wList: Weapon[] = []
     for (const weaponId of Object.values(ps.mountedWeapons)) {
@@ -121,7 +118,6 @@ export function simulateBattle(
   })
 
   const enemyWeaponMaps: Map<string, Weapon[]>[] = enemyHullIds.map((hid) => {
-    // Give enemy a generic loadout
     const hull = ships.find((s) => s.id === hid)!
     const wList: Weapon[] = []
     for (const slot of hull.weaponSlots) {
@@ -135,155 +131,127 @@ export function simulateBattle(
     return map
   })
 
-  // Cooldown timers (tick count)
+  // Cooldown timers
   const playerCooldowns: Map<string, number>[] = playerFleet.map(() => new Map())
   const enemyCooldowns: Map<string, number>[] = enemyHullIds.map(() => new Map())
 
-  // Initial snapshot
   replay.push(createSnapshot(playerShips, enemyShips, [], [], 0))
 
-  // Simulation loop
   for (let tick = 1; tick <= MAX_TICKS; tick++) {
     const events: BattleEvent[] = []
 
-    // === Phase 1: AI decisions ===
-    const allShips = [...playerShips, ...enemyShips]
-
+    // === Player ships: static, face enemy, manage shields, fire ===
     for (let i = 0; i < playerShips.length; i++) {
       const self = playerShips[i]
       if (!self.alive) continue
 
       const hull = ships.find((s) => s.id === self.hullId)!
       const wList = playerWeaponMaps[i].get(self.hullId) ?? []
-      const weaponRanges = new Map(wList.map((w) => [w.id, getWeaponRange(w)]))
 
-      const output = runShipAI({
-        self,
-        enemies: enemyShips.filter((s) => s.alive),
-        allies: playerShips.filter((s) => s.alive && s.id !== self.id),
-        weapons: wList,
-        weaponRanges,
-      })
+      // Pick closest alive enemy
+      const aliveEnemies = enemyShips.filter((s) => s.alive)
+      let target: BattleShipSnapshot | null = null
+      let closestDist = Infinity
+      for (const e of aliveEnemies) {
+        const d = dist([self.position[0], self.position[1]], [e.position[0], e.position[1]])
+        if (d < closestDist) { closestDist = d; target = e }
+      }
 
-      // Move ship
-      self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 40
-      self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 40
-      self.shieldActive = output.wantShield
-
-      // Vent flux
+      // Flux management
+      const fluxOverloaded = self.flux > self.maxFlux * 0.8
       self.flux = Math.max(0, self.flux - hull.baseStats.fluxDissipation * 0.1)
+      self.shieldActive = !fluxOverloaded
 
-      // Fire weapons
-      if (output.wantFire && output.targetEnemyId) {
-        const target = enemyShips.find((s) => s.id === output.targetEnemyId)
-        if (target) {
-          for (const w of wList) {
-            const cd = playerCooldowns[i].get(w.id) ?? 0
-            if (cd > 0) {
-              playerCooldowns[i].set(w.id, cd - 1)
-              continue
-            }
-            // Shoot
-            const range = getWeaponRange(w)
-            const d = dist(
-              [self.position[0], self.position[1]],
-              [target.position[0], target.position[1]],
-            )
-            if (d <= range && Math.random() < w.accuracy) {
-              const a = angleTo(
-                [self.position[0], self.position[1]],
-                [target.position[0], target.position[1]],
-              )
-              const speed = range / 20 // projectile speed
-              projectiles.push({
-                id: `proj_${pid++}`,
-                type: w.type,
-                position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
-                velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
-                damage: w.damage,
-                damageType: w.damageType,
-                sourceShipId: self.id,
-              })
-              self.flux += w.fluxPerShot
-              playerCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
-            }
+      // Fire weapons (no range check — ships are fixed, always in range)
+      if (!fluxOverloaded && target) {
+        for (const w of wList) {
+          const cd = playerCooldowns[i].get(w.id) ?? 0
+          if (cd > 0) {
+            playerCooldowns[i].set(w.id, cd - 1)
+            continue
           }
+          // Target random position on enemy ship body (±1 unit around its center)
+          const tx = target.position[0] + (Math.random() - 0.5) * 2.5
+          const ty = target.position[1] + (Math.random() - 0.5) * 2.5
+          const baseAngle = angleTo([self.position[0], self.position[1]], [tx, ty])
+          const spread = (1 - w.accuracy) * 0.3
+          const a = baseAngle + (Math.random() - 0.5) * spread
+          const speed = 8 / 20
+          projectiles.push({
+            id: `proj_${pid++}`,
+            type: w.type,
+            position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
+            velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
+            damage: w.damage,
+            damageType: w.damageType,
+            sourceShipId: self.id,
+          })
+          self.flux += w.fluxPerShot
+          playerCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
         }
       }
     }
 
-    // Enemy AI (simplified)
+    // === Enemy ships: static, face enemy, manage shields, fire ===
     for (let i = 0; i < enemyShips.length; i++) {
       const self = enemyShips[i]
       if (!self.alive) continue
 
       const hull = ships.find((s) => s.id === self.hullId)!
       const wList = enemyWeaponMaps[i].get(self.hullId) ?? []
-      const weaponRanges = new Map(wList.map((w) => [w.id, getWeaponRange(w)]))
 
-      const output = runShipAI({
-        self,
-        enemies: playerShips.filter((s) => s.alive),
-        allies: enemyShips.filter((s) => s.alive && s.id !== self.id),
-        weapons: wList,
-        weaponRanges,
-      })
+      const alivePlayers = playerShips.filter((s) => s.alive)
+      let target: BattleShipSnapshot | null = null
+      let closestDist = Infinity
+      for (const p of alivePlayers) {
+        const d = dist([self.position[0], self.position[1]], [p.position[0], p.position[1]])
+        if (d < closestDist) { closestDist = d; target = p }
+      }
 
-      self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 40
-      self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 40
-      self.shieldActive = output.wantShield
+      const fluxOverloaded = self.flux > self.maxFlux * 0.8
       self.flux = Math.max(0, self.flux - hull.baseStats.fluxDissipation * 0.1)
+      self.shieldActive = !fluxOverloaded
 
-      if (output.wantFire && output.targetEnemyId) {
-        const target = playerShips.find((s) => s.id === output.targetEnemyId)
-        if (target) {
-          for (const w of wList) {
-            const cd = enemyCooldowns[i].get(w.id) ?? 0
-            if (cd > 0) {
-              enemyCooldowns[i].set(w.id, cd - 1)
-              continue
-            }
-            const range = getWeaponRange(w)
-            const d = dist(
-              [self.position[0], self.position[1]],
-              [target.position[0], target.position[1]],
-            )
-            if (d <= range && Math.random() < w.accuracy) {
-              const a = angleTo(
-                [self.position[0], self.position[1]],
-                [target.position[0], target.position[1]],
-              )
-              const speed = range / 20
-              projectiles.push({
-                id: `proj_${pid++}`,
-                type: w.type,
-                position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
-                velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
-                damage: w.damage,
-                damageType: w.damageType,
-                sourceShipId: self.id,
-              })
-              self.flux += w.fluxPerShot
-              enemyCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
-            }
+      if (!fluxOverloaded && target) {
+        for (const w of wList) {
+          const cd = enemyCooldowns[i].get(w.id) ?? 0
+          if (cd > 0) {
+            enemyCooldowns[i].set(w.id, cd - 1)
+            continue
           }
+          const tx = target.position[0] + (Math.random() - 0.5) * 2.5
+          const ty = target.position[1] + (Math.random() - 0.5) * 2.5
+          const baseAngle = angleTo([self.position[0], self.position[1]], [tx, ty])
+          const spread = (1 - w.accuracy) * 0.3
+          const a = baseAngle + (Math.random() - 0.5) * spread
+          const speed = 8 / 20
+          projectiles.push({
+            id: `proj_${pid++}`,
+            type: w.type,
+            position: [self.position[0] + Math.cos(a) * 1.2, self.position[1] + Math.sin(a) * 1.2],
+            velocity: [Math.cos(a) * speed, Math.sin(a) * speed],
+            damage: w.damage,
+            damageType: w.damageType,
+            sourceShipId: self.id,
+          })
+          self.flux += w.fluxPerShot
+          enemyCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
         }
       }
     }
 
-    // === Phase 2: Move projectiles & check hits ===
+    // === Move projectiles & check hits ===
     const aliveProjectiles: BattleProjectile[] = []
     for (const proj of projectiles) {
       proj.position[0] += proj.velocity[0]
       proj.position[1] += proj.velocity[1]
 
-      // Check bounds
-      if (Math.abs(proj.position[0]) > BATTLE_SIZE || Math.abs(proj.position[1]) > BATTLE_SIZE) {
+      if (Math.abs(proj.position[0]) > BATTLE_HALF || Math.abs(proj.position[1]) > BATTLE_HALF) {
         continue
       }
 
-      // Check hit on all alive ships (skip the firing ship)
       let hit = false
+      const allShips = [...playerShips, ...enemyShips]
       for (const ship of allShips) {
         if (!ship.alive) continue
         if (ship.id === proj.sourceShipId) continue
@@ -291,9 +259,7 @@ export function simulateBattle(
           [proj.position[0], proj.position[1]],
           [ship.position[0], ship.position[1]],
         )
-        // Simple hit radius
         if (d < 1.5) {
-          // Check shield
           const shipHull = ships.find((s) => s.id === ship.hullId)
           const shieldEff = shipHull?.baseStats.shieldEfficiency ?? 0.8
           const shieldArc = shipHull?.baseStats.shieldArc ?? 150
@@ -310,7 +276,6 @@ export function simulateBattle(
 
           let actualDamage: number
           if (hitsShield) {
-            // Shield damage type multiplier
             const shieldMult = proj.damageType === 'Kinetic' ? 2 :
               proj.damageType === 'HighExplosive' ? 0.5 :
               proj.damageType === 'Fragmentation' ? 0.25 : 1
@@ -333,7 +298,6 @@ export function simulateBattle(
             events.push({ tick, type: 'hit', position: [...proj.position] as [number, number], shipId: ship.id, damage: Math.round(actualDamage) })
           }
 
-          // Check for kill
           if (ship.hp <= 0) {
             ship.hp = 0
             ship.alive = false
@@ -342,7 +306,7 @@ export function simulateBattle(
           }
 
           hit = true
-          break // projectile consumed
+          break
         }
       }
 
@@ -353,35 +317,29 @@ export function simulateBattle(
     projectiles.length = 0
     projectiles.push(...aliveProjectiles)
 
-    // === Phase 3: Check win/loss ===
+    // Check win/loss
     const playerAlive = playerShips.some((s) => s.alive)
     const enemyAlive = enemyShips.some((s) => s.alive)
     if (!playerAlive || !enemyAlive) {
-      // Final snapshot
       replay.push(createSnapshot(playerShips, enemyShips, projectiles, events, tick))
       break
     }
 
-    // Save snapshot every 5 ticks
     if (tick % 5 === 0) {
       replay.push(createSnapshot(playerShips, enemyShips, projectiles, events, tick))
     }
-
-    // Also save on events
     if (events.length > 0 && tick % 5 !== 0) {
       replay.push(createSnapshot(playerShips, enemyShips, projectiles, events, tick))
     }
   }
 
-  // Determine winner
   const playerAlive = playerShips.some((s) => s.alive)
   const enemyAlive = enemyShips.some((s) => s.alive)
   let winner: 'player' | 'enemy'
   if (playerAlive && !enemyAlive) winner = 'player'
   else if (!playerAlive && enemyAlive) winner = 'enemy'
-  else winner = 'player' // draw → player wins
+  else winner = 'player'
 
-  // Generate loot if player wins
   let loot: LootDrop[] = []
   if (winner === 'player') {
     const table = lootTables[Math.floor(Math.random() * lootTables.length)]
@@ -396,7 +354,6 @@ export function simulateBattle(
           break
         }
       }
-      // Always give some credits
       loot.push({ type: 'credits', amount: 500 + Math.floor(Math.random() * 1500) })
     }
   }

@@ -177,7 +177,7 @@ export interface BattleReplay {
 }
 
 export interface LootDrop {
-  type: 'credits' | 'weapon' | 'hullmod'
+  type: 'credits' | 'weapon' | 'hullmod' | 'fuel'
   itemId?: string
   amount: number
 }
