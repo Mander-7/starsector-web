@@ -28,18 +28,36 @@ export function generateStarMap(seed: number = 42): GeneratedMap {
     '角宿星系', '北斗星系', '紫微星系', '南斗星系', '银河核心',
   ]
 
+  const types: StarNode['type'][] = ['Star', 'Star', 'Star', 'Station', 'Ruin', 'AsteroidField']
+
+  // Generate nodes with minimum distance constraint, scattered across a 2D area
   const nodes: StarNode[] = []
+  const spread = 12 // map half-width
+  const minDist = 3.5
+
   for (let i = 0; i < nodeCount; i++) {
-    const angle = (i / nodeCount) * Math.PI * 2 + rand() * 0.5
-    const radius = 3 + rand() * 5
-    const types: StarNode['type'][] = ['Star', 'Star', 'Star', 'Station', 'Ruin', 'AsteroidField']
+    let x: number, y: number
+    let attempts = 0
+    do {
+      x = (rand() - 0.5) * spread * 2
+      y = (rand() - 0.5) * spread * 2
+      attempts++
+    } while (
+      attempts < 50 &&
+      nodes.some((n) => {
+        const dx = n.position[0] - x
+        const dy = n.position[1] - y
+        return Math.sqrt(dx * dx + dy * dy) < minDist
+      })
+    )
+
     const type = types[Math.floor(rand() * types.length)]
 
     nodes.push({
       id: `node_${i}`,
       name: nodeNames[i] ?? `星系 ${i + 1}`,
       type,
-      position: [Math.cos(angle) * radius, Math.sin(angle) * radius, (rand() - 0.5) * 2],
+      position: [x, y, 0],
       hasStation: type === 'Station' || rand() > 0.5,
       dangerLevel: 1 + Math.floor(rand() * 5),
     })
@@ -63,8 +81,7 @@ export function generateStarMap(seed: number = 42): GeneratedMap {
         if (connected.has(m.id)) continue
         const dx = n.position[0] - m.position[0]
         const dy = n.position[1] - m.position[1]
-        const dz = n.position[2] - m.position[2]
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const dist = Math.sqrt(dx * dx + dy * dy)
         if (dist < bestDist) {
           bestDist = dist
           bestEdge = { from: n.id, to: m.id }

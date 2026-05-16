@@ -97,6 +97,7 @@ export interface PlayerState {
   currentSystemId: string
   currentStationId: string | null
   fuel: number
+  starMapSeed: number
 }
 
 // ============== Star Map ==============

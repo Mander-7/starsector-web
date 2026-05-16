@@ -12,6 +12,7 @@ interface PlayerStore extends PlayerState {
   setCurrentSystem: (id: string) => void
   setCurrentStation: (id: string | null) => void
   setFuel: (n: number) => void
+  setStarMapSeed: (n: number) => void
   loadState: (state: PlayerState) => void
 }
 
@@ -22,6 +23,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   currentSystemId: '',
   currentStationId: null,
   fuel: 100,
+  starMapSeed: 0,
 
   setCredits: (n) => set({ credits: n }),
   addCredits: (n) => set((s) => ({ credits: s.credits + n })),
@@ -68,6 +70,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   setCurrentSystem: (id) => set({ currentSystemId: id }),
   setCurrentStation: (id) => set({ currentStationId: id }),
   setFuel: (n) => set({ fuel: n }),
+  setStarMapSeed: (n) => set({ starMapSeed: n }),
 
   loadState: (state) =>
     set({
@@ -77,5 +80,6 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
       currentSystemId: state.currentSystemId,
       currentStationId: state.currentStationId,
       fuel: state.fuel,
+      starMapSeed: state.starMapSeed,
     }),
 }))

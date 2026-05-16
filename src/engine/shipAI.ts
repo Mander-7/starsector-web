@@ -5,7 +5,7 @@ export interface AIInput {
   self: BattleShipSnapshot
   enemies: BattleShipSnapshot[]
   allies: BattleShipSnapshot[]
-  weapons: Weapon[] // currently mounted
+  weapons: Weapon[]
   weaponRanges: Map<string, number>
 }
 
@@ -17,7 +17,7 @@ export interface AIOutput {
   targetEnemyId: string | null
 }
 
-const BATTLE_SIZE = 20 // [-10, 10] on each axis
+const BATTLE_SIZE = 20
 
 export function runShipAI(input: AIInput): AIOutput {
   const { self, enemies, weaponRanges } = input
@@ -38,52 +38,55 @@ export function runShipAI(input: AIInput): AIOutput {
     }
   }
 
-  // Use average weapon range for positioning (not max, to keep short-range weapons useful)
-  let avgRange = 5
-  let count = 0
-  for (const [, range] of weaponRanges) {
-    avgRange += range
-    count++
-  }
-  if (count > 0) avgRange /= count
-
   const angleToTarget = angleTo(
     [self.position[0], self.position[1]],
     [closestEnemy.position[0], closestEnemy.position[1]],
   )
+
+  // Compute weapon range stats
+  let avgRange = 5
+  let maxRange = 5
+  let count = 0
+  for (const [, range] of weaponRanges) {
+    avgRange += range
+    if (range > maxRange) maxRange = range
+    count++
+  }
+  if (count > 0) avgRange /= count
 
   let targetX = self.position[0]
   let targetY = self.position[1]
   let wantShield = true
   let wantFire = false
 
-  // High flux → retreat and vent
-  if (self.flux > self.maxFlux * 0.8) {
+  // Fire decision: independent of positioning. Fire whenever flux allows and any weapon is in range.
+  const fluxOverloaded = self.flux > self.maxFlux * 0.8
+  const anyWeaponInRange = closestDist < maxRange
+
+  if (!fluxOverloaded && anyWeaponInRange) {
+    wantFire = true
+  }
+
+  // Positioning
+  if (fluxOverloaded) {
+    // Retreat: vent flux, no shield
     wantShield = false
-    // Move away from enemy
     targetX = self.position[0] - Math.cos(angleToTarget) * 0.5
     targetY = self.position[1] - Math.sin(angleToTarget) * 0.5
-  }
-  // Enemy in range → fire and manage distance
-  else if (closestDist < avgRange * 1.1) {
-    wantFire = true
-    // Optimal distance: 70% of average range
+  } else if (closestDist < avgRange * 1.1) {
+    // Combat range: maintain optimal distance (70% of average range)
     const optimalDist = avgRange * 0.7
-    // Smooth proportional movement — no binary jump
     const distError = closestDist - optimalDist
     const moveAmount = clamp(distError * 0.3, -0.5, 0.5)
     targetX = self.position[0] + Math.cos(angleToTarget) * moveAmount
     targetY = self.position[1] + Math.sin(angleToTarget) * moveAmount
-    // Face target
     self.rotation = angleToTarget
-  }
-  // Enemy out of range → approach
-  else {
+  } else {
+    // Approach enemy
     targetX = self.position[0] + Math.cos(angleToTarget) * 0.4
     targetY = self.position[1] + Math.sin(angleToTarget) * 0.4
   }
 
-  // Face shield toward closest enemy
   self.shieldFacing = angleToTarget
 
   // Clamp to battlefield

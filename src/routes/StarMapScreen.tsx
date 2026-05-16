@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { StarMap3D } from '../components/starmap/StarMap3D'
+import { StarMap2D } from '../components/starmap/StarMap2D'
 import { generateStarMap } from '../engine/starMapGen'
 import { usePlayerStore } from '../store/playerStore'
 import { saveGame, listSaves } from '../db'
@@ -18,14 +18,26 @@ export function StarMapScreen() {
   const credits = usePlayerStore((s) => s.credits)
   const fleet = usePlayerStore((s) => s.fleet)
   const warehouse = usePlayerStore((s) => s.warehouse)
+  const starMapSeed = usePlayerStore((s) => s.starMapSeed)
 
   // Auto-save
   useAutoSave(true)
 
-  const starMap = useMemo(() => generateStarMap(42), [])
+  const starMap = useMemo(() => generateStarMap(starMapSeed || 42), [starMapSeed])
   const [selectedNode, setSelectedNode] = useState<StarNode | null>(
     starMap.nodes.find((n) => n.id === currentSystemId) ?? null,
   )
+
+  // Auto-select first node if current system doesn't match any node (e.g. new game)
+  useEffect(() => {
+    if (!currentSystemId || !starMap.nodes.find((n) => n.id === currentSystemId)) {
+      const firstNode = starMap.nodes[0]
+      if (firstNode) {
+        setCurrentSystem(firstNode.id)
+        setSelectedNode(firstNode)
+      }
+    }
+  }, [currentSystemId, starMap.nodes, setCurrentSystem])
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
 
   const currentNode = starMap.nodes.find((n) => n.id === currentSystemId)
@@ -100,9 +112,9 @@ export function StarMapScreen() {
         </button>
       </div>
 
-      {/* 3D Star Map */}
+      {/* 2D Star Map */}
       <div className="flex-1">
-        <StarMap3D
+        <StarMap2D
           nodes={starMap.nodes}
           edges={starMap.edges}
           currentNodeId={currentSystemId}

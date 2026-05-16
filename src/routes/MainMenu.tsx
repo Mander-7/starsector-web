@@ -6,7 +6,7 @@ import type { PlayerShip } from '../types'
 
 export function MainMenu() {
   const navigate = useNavigate()
-  const { setFleet, setWarehouse, setCredits, setFuel, setCurrentSystem, loadState } = usePlayerStore()
+  const { setFleet, setWarehouse, setCredits, setFuel, setCurrentSystem, setStarMapSeed, loadState } = usePlayerStore()
 
   const [showLoad, setShowLoad] = useState(false)
   const [saves, setSaves] = useState<Awaited<ReturnType<typeof listSaves>>>([])
@@ -36,7 +36,7 @@ export function MainMenu() {
     ])
     setCredits(5000)
     setFuel(100)
-    setCurrentSystem('sys_0')
+    setStarMapSeed(Math.floor(Math.random() * 1000000))
     navigate('/starmap')
   }
 
