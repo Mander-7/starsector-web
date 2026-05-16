@@ -67,27 +67,28 @@ export function runShipAI(input: AIInput): AIOutput {
     wantFire = true
   }
 
-  // Positioning
+  // Always face the enemy
+  self.rotation = angleToTarget
+  self.shieldFacing = angleToTarget
+
+  // Positioning: move forward/backward along the line to target
   if (fluxOverloaded) {
     // Retreat: vent flux, no shield
     wantShield = false
     targetX = self.position[0] - Math.cos(angleToTarget) * 0.5
     targetY = self.position[1] - Math.sin(angleToTarget) * 0.5
   } else if (closestDist < avgRange * 1.1) {
-    // Combat range: maintain optimal distance (70% of average range)
+    // Combat range: maintain optimal distance
     const optimalDist = avgRange * 0.7
     const distError = closestDist - optimalDist
     const moveAmount = clamp(distError * 0.3, -0.5, 0.5)
     targetX = self.position[0] + Math.cos(angleToTarget) * moveAmount
     targetY = self.position[1] + Math.sin(angleToTarget) * moveAmount
-    self.rotation = angleToTarget
   } else {
     // Approach enemy
     targetX = self.position[0] + Math.cos(angleToTarget) * 0.4
     targetY = self.position[1] + Math.sin(angleToTarget) * 0.4
   }
-
-  self.shieldFacing = angleToTarget
 
   // Clamp to battlefield
   targetX = clamp(targetX, -BATTLE_SIZE, BATTLE_SIZE)

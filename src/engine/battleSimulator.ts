@@ -168,10 +168,6 @@ export function simulateBattle(
       // Move ship
       self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 40
       self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 40
-      self.rotation = angleTo(
-        [self.position[0], self.position[1]],
-        [output.targetX, output.targetY],
-      )
       self.shieldActive = output.wantShield
 
       // Vent flux
@@ -235,10 +231,6 @@ export function simulateBattle(
 
       self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 40
       self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 40
-      self.rotation = angleTo(
-        [self.position[0], self.position[1]],
-        [output.targetX, output.targetY],
-      )
       self.shieldActive = output.wantShield
       self.flux = Math.max(0, self.flux - hull.baseStats.fluxDissipation * 0.1)
 
