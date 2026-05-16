@@ -25,7 +25,6 @@ export function ShipModel({
     const { length, width, noseWidth, engineWidth, wings } = shape
     const hl = length / 2
     const hw = width / 2
-    const nw = (noseWidth / 2) || hw * 0.3
     const ew = (engineWidth / 2) || hw * 0.7
 
     const outline = new THREE.Shape()
