@@ -69,15 +69,11 @@ export function runShipAI(input: AIInput): AIOutput {
     wantFire = true
     // Optimal distance: 70% of average range
     const optimalDist = avgRange * 0.7
-    if (closestDist > optimalDist) {
-      // Close in
-      targetX = self.position[0] + Math.cos(angleToTarget) * 0.3
-      targetY = self.position[1] + Math.sin(angleToTarget) * 0.3
-    } else if (closestDist < optimalDist * 0.6) {
-      // Too close, back off
-      targetX = self.position[0] - Math.cos(angleToTarget) * 0.3
-      targetY = self.position[1] - Math.sin(angleToTarget) * 0.3
-    }
+    // Smooth proportional movement — no binary jump
+    const distError = closestDist - optimalDist
+    const moveAmount = clamp(distError * 0.3, -0.5, 0.5)
+    targetX = self.position[0] + Math.cos(angleToTarget) * moveAmount
+    targetY = self.position[1] + Math.sin(angleToTarget) * moveAmount
     // Face target
     self.rotation = angleToTarget
   }
