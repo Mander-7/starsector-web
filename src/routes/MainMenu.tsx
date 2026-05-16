@@ -21,17 +21,17 @@ export function MainMenu() {
 
   const handleNewGame = () => {
     const starterShip: PlayerShip = {
-      hullId: 'wolf',
+      hullId: 'hammerhead',
       name: '阿尔法号',
-      mountedWeapons: { w1: 'pulse_laser', w2: 'pulse_laser', w3: 'pulse_laser', m1: 'harpoon' },
+      mountedWeapons: { w1: 'heavy_ac', w2: 'assault_gun', w3: 'light_ac', w4: 'light_ac', m1: 'sabot' },
       installedMods: ['hardened_shields'],
-      currentHp: 1500,
-      currentArmor: 200,
+      currentHp: 4000,
+      currentArmor: 500,
     }
     setFleet([starterShip])
     setWarehouse([
       { id: crypto.randomUUID(), type: 'weapon', itemId: 'light_ac', quantity: 2 },
-      { id: crypto.randomUUID(), type: 'weapon', itemId: 'harpoon', quantity: 1 },
+      { id: crypto.randomUUID(), type: 'weapon', itemId: 'pulse_laser', quantity: 2 },
       { id: crypto.randomUUID(), type: 'hullmod', itemId: 'flux_distributor', quantity: 1 },
     ])
     setCredits(5000)

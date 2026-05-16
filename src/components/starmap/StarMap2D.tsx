@@ -9,10 +9,11 @@ interface StarMap2DProps {
   nodes: StarNode[]
   edges: { from: string; to: string }[]
   currentNodeId: string
+  selectedNodeId: string | null
   onNodeClick: (node: StarNode) => void
 }
 
-export function StarMap2D({ nodes, edges, currentNodeId, onNodeClick }: StarMap2DProps) {
+export function StarMap2D({ nodes, edges, currentNodeId, selectedNodeId, onNodeClick }: StarMap2DProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -105,6 +106,7 @@ export function StarMap2D({ nodes, edges, currentNodeId, onNodeClick }: StarMap2
       {nodes.map((node) => {
         const [sx, sy] = toScreen(node.position[0], node.position[1])
         const isCurrent = node.id === currentNodeId
+        const isSelected = node.id === selectedNodeId && !isCurrent
         const isHovered = hoveredNode === node.id
         const size = isHovered ? NODE_RADIUS * 1.3 : NODE_RADIUS
 
@@ -117,7 +119,7 @@ export function StarMap2D({ nodes, edges, currentNodeId, onNodeClick }: StarMap2
               top: sy - size,
               width: size * 2,
               height: size * 2,
-              zIndex: isCurrent ? 10 : 1,
+              zIndex: isCurrent ? 10 : isSelected ? 5 : 1,
             }}
             onClick={(e) => {
               e.stopPropagation()
@@ -126,7 +128,7 @@ export function StarMap2D({ nodes, edges, currentNodeId, onNodeClick }: StarMap2
             onMouseEnter={() => setHoveredNode(node.id)}
             onMouseLeave={() => setHoveredNode(null)}
           >
-            {/* Glow ring for current */}
+            {/* Glow ring for current location */}
             {isCurrent && (
               <div
                 className="absolute rounded-full animate-pulse"
@@ -140,6 +142,19 @@ export function StarMap2D({ nodes, edges, currentNodeId, onNodeClick }: StarMap2
                 }}
               />
             )}
+            {/* Selection ring for selected (non-current) node */}
+            {isSelected && (
+              <div
+                className="absolute rounded-full"
+                style={{
+                  width: size * 2.4,
+                  height: size * 2.4,
+                  left: -size * 0.2,
+                  top: -size * 0.2,
+                  border: '2px dashed rgba(255,255,255,0.5)',
+                }}
+              />
+            )}
             {/* Node circle */}
             <div
               className="rounded-full transition-all duration-150"
@@ -149,7 +164,9 @@ export function StarMap2D({ nodes, edges, currentNodeId, onNodeClick }: StarMap2
                 backgroundColor: nodeColor(node),
                 boxShadow: isCurrent
                   ? `0 0 ${size}px ${nodeColor(node)}`
-                  : `0 0 ${size * 0.3}px ${nodeColor(node)}`,
+                  : isSelected
+                    ? `0 0 ${size * 0.6}px ${nodeColor(node)}`
+                    : `0 0 ${size * 0.3}px ${nodeColor(node)}`,
                 opacity: isHovered ? 1 : 0.85,
               }}
             />
@@ -157,8 +174,8 @@ export function StarMap2D({ nodes, edges, currentNodeId, onNodeClick }: StarMap2
             <span
               className="text-[10px] whitespace-nowrap mt-1 transition-opacity"
               style={{
-                color: isCurrent ? '#fff' : '#888',
-                opacity: isHovered || isCurrent ? 1 : 0.5,
+                color: isCurrent ? '#fff' : isSelected ? '#ccc' : '#888',
+                opacity: isHovered || isCurrent || isSelected ? 1 : 0.5,
                 fontWeight: isCurrent ? 600 : 400,
                 textShadow: isCurrent ? '0 0 6px rgba(255,255,255,0.5)' : 'none',
               }}

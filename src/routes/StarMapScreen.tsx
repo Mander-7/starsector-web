@@ -8,6 +8,12 @@ import { useAutoSave } from '../hooks/useAutoSave'
 import { playClickSound } from '../utils/audio'
 import type { StarNode } from '../types'
 
+function calcDist(a: StarNode, b: StarNode): number {
+  const dx = a.position[0] - b.position[0]
+  const dy = a.position[1] - b.position[1]
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
 export function StarMapScreen() {
   const navigate = useNavigate()
   const currentSystemId = usePlayerStore((s) => s.currentSystemId)
@@ -20,13 +26,13 @@ export function StarMapScreen() {
   const warehouse = usePlayerStore((s) => s.warehouse)
   const starMapSeed = usePlayerStore((s) => s.starMapSeed)
 
-  // Auto-save
   useAutoSave(true)
 
   const starMap = useMemo(() => generateStarMap(starMapSeed || 42), [starMapSeed])
   const [selectedNode, setSelectedNode] = useState<StarNode | null>(
     starMap.nodes.find((n) => n.id === currentSystemId) ?? null,
   )
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false)
 
   // Auto-select first node if current system doesn't match any node (e.g. new game)
   useEffect(() => {
@@ -38,32 +44,43 @@ export function StarMapScreen() {
       }
     }
   }, [currentSystemId, starMap.nodes, setCurrentSystem])
-  const [showSaveConfirm, setShowSaveConfirm] = useState(false)
 
   const currentNode = starMap.nodes.find((n) => n.id === currentSystemId)
 
+  // Distance and fuel cost from current to selected
+  const distToSelected = (currentNode && selectedNode && currentNode.id !== selectedNode.id)
+    ? calcDist(currentNode, selectedNode)
+    : 0
+  const fuelCost = Math.round(distToSelected * 5)
+  const canTravel = fuelCost > 0 && fuel >= fuelCost
+  const isStranded = fuel <= 0
+
+  // Click a node → select it only, don't move
   const handleNodeClick = (node: StarNode) => {
     setSelectedNode(node)
-    setCurrentSystem(node.id)
-    if (currentNode && currentNode.id !== node.id) {
-      const dx = currentNode.position[0] - node.position[0]
-      const dy = currentNode.position[1] - node.position[1]
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      setFuel(Math.max(0, fuel - Math.round(dist * 5)))
-    }
+    playClickSound()
+  }
+
+  // Travel to selected node
+  const handleTravel = () => {
+    if (!selectedNode || !currentNode || selectedNode.id === currentNode.id) return
+    if (!canTravel) return
+    setCurrentSystem(selectedNode.id)
+    setFuel(fuel - fuelCost)
     playClickSound()
   }
 
   const handleDock = () => {
-    if (selectedNode?.hasStation) {
-      setCurrentStation(selectedNode.id)
+    if (currentNode?.hasStation) {
+      setCurrentStation(currentNode.id)
       navigate('/station')
     }
   }
 
   const handleBattle = () => {
+    const danger = currentNode?.dangerLevel ?? 1
     playClickSound()
-    navigate('/battle')
+    navigate(`/battle?danger=${danger}`)
   }
 
   const handleSave = async () => {
@@ -97,6 +114,9 @@ export function StarMapScreen() {
         <span className="text-[10px] sm:text-xs text-[var(--color-accent)] whitespace-nowrap">
           信用点 ${credits.toLocaleString()}
         </span>
+        {isStranded && (
+          <span className="text-[10px] sm:text-xs text-[var(--color-danger)] animate-pulse">燃料耗尽!</span>
+        )}
         <div className="flex-1" />
         <button
           className="px-2 sm:px-3 py-1 text-xs border border-[var(--color-panel-border)] rounded text-[var(--color-text-dim)] hover:border-[var(--color-accent)] cursor-pointer"
@@ -118,6 +138,7 @@ export function StarMapScreen() {
           nodes={starMap.nodes}
           edges={starMap.edges}
           currentNodeId={currentSystemId}
+          selectedNodeId={selectedNode?.id ?? null}
           onNodeClick={handleNodeClick}
         />
       </div>
@@ -141,10 +162,31 @@ export function StarMapScreen() {
             </div>
             <div className="text-[9px] sm:text-[10px] text-[var(--color-text-dim)] truncate">
               {selectedNode.type} · 危险 {selectedNode.dangerLevel}
+              {selectedNode.id !== currentSystemId && (
+                <span> · 距离 {distToSelected.toFixed(1)} · 消耗 <span className={canTravel ? 'text-[var(--color-warning)]' : 'text-[var(--color-danger)]'}>{fuelCost} 燃料</span></span>
+              )}
             </div>
           </div>
           <div className="flex-1" />
-          {selectedNode.hasStation && (
+
+          {/* Travel button (for different node) */}
+          {selectedNode.id !== currentSystemId && (
+            <button
+              className={`px-3 sm:px-4 py-1.5 rounded text-xs sm:text-sm font-medium whitespace-nowrap cursor-pointer ${
+                canTravel
+                  ? 'bg-[var(--color-accent)] text-white hover:brightness-110'
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
+              onClick={handleTravel}
+              disabled={!canTravel}
+              title={fuel < fuelCost ? `需要 ${fuelCost} 燃料，当前仅有 ${fuel}` : ''}
+            >
+              {fuel < fuelCost ? `燃料不足 (需${fuelCost})` : '前往'}
+            </button>
+          )}
+
+          {/* Dock button (for current node with station) */}
+          {selectedNode.id === currentSystemId && selectedNode.hasStation && (
             <button
               className="px-3 sm:px-4 py-1.5 bg-[var(--color-accent)] text-white rounded text-xs sm:text-sm font-medium cursor-pointer hover:brightness-110 whitespace-nowrap"
               onClick={handleDock}

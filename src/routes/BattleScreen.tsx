@@ -1,10 +1,20 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BattleCanvas } from '../components/battle/BattleCanvas'
 import { BattleHUD } from '../components/battle/BattleHUD'
 import { useBattleSim } from '../hooks/useBattleSim'
 import { usePlayerStore } from '../store/playerStore'
 import type { TickSnapshot, BattleShipSnapshot } from '../types'
+
+function getEnemiesForDanger(danger: number): string[] {
+  // Danger 1-4: frigates, 5-7: destroyers, 8-9: cruiser, 10: multi-ship
+  if (danger <= 2) return ['wolf']
+  if (danger <= 4) return ['tempest']
+  if (danger <= 6) return ['hammerhead']
+  if (danger <= 7) return ['medusa']
+  if (danger <= 9) return ['eagle']
+  return ['hammerhead', 'wolf'] // danger 10: two enemies
+}
 
 function lerpAngle(a: number, b: number, t: number): number {
   let diff = b - a
@@ -37,11 +47,13 @@ function lerpSnapshots(current: TickSnapshot, next: TickSnapshot | null, t: numb
 
 export function BattleScreen() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const fleet = usePlayerStore((s) => s.fleet)
   const addCredits = usePlayerStore((s) => s.addCredits)
   const addToWarehouse = usePlayerStore((s) => s.addToWarehouse)
 
-  const enemyHulls = useMemo(() => ['hammerhead'], [])
+  const danger = Number(searchParams.get('danger') ?? 1)
+  const enemyHulls = useMemo(() => getEnemiesForDanger(danger), [danger])
 
   const result = useBattleSim(fleet, enemyHulls)
 
