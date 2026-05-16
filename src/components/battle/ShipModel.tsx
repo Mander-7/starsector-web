@@ -25,13 +25,14 @@ export function ShipModel({
     const { length, width, noseWidth, engineWidth, wings } = shape
     const hl = length / 2
     const hw = width / 2
+    const nw = (noseWidth / 2) || hw * 0.3
     const ew = (engineWidth / 2) || hw * 0.7
 
     const outline = new THREE.Shape()
     // Nose
     outline.moveTo(hl, 0)
-    // Nose → widest shoulder
-    outline.lineTo(hl * 0.7, hw * 0.4)
+    // Nose → widest shoulder (noseWidth controls shoulder taper)
+    outline.lineTo(hl * 0.7, nw)
     outline.lineTo(hl * 0.3, hw)
     // Mid section
     outline.lineTo(-hl * 0.1, hw)
