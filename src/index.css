@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* Starsector-inspired dark theme */
+:root {
+  --color-space-bg: #0a0a14;
+  --color-panel-bg: #12122a;
+  --color-panel-border: #1e1e3a;
+  --color-text: #c8c8d4;
+  --color-text-dim: #6a6a8a;
+  --color-accent: #4da6ff;
+  --color-accent-glow: rgba(77, 166, 255, 0.3);
+  --color-danger: #ff4444;
+  --color-success: #44cc66;
+  --color-warning: #ffaa22;
+  --color-energy: #44ddff;
+  --color-ballistic: #ff8844;
+  --color-missile: #44ff44;
+  --color-shield: #4488ff;
+  --color-flux: #ff6644;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-space-bg);
+  color: var(--color-text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
