@@ -67,7 +67,7 @@ export function simulateBattle(
       name: ps.name,
       hullId: ps.hullId,
       isPlayer: true,
-      position: [-4 + i * 2, 0],
+      position: [-2.5 + i * 2, 0],
       rotation: 0,
       hp: ps.currentHp,
       maxHp: hull.baseStats.hp,
@@ -88,7 +88,7 @@ export function simulateBattle(
       name: hull.name,
       hullId: hid,
       isPlayer: false,
-      position: [4 - i * 2, 0],
+      position: [2.5 - i * 2, 0],
       rotation: Math.PI,
       hp: hull.baseStats.hp,
       maxHp: hull.baseStats.hp,
@@ -166,8 +166,8 @@ export function simulateBattle(
       })
 
       // Move ship
-      self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 100
-      self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 100
+      self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 40
+      self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 40
       self.rotation = angleTo(
         [self.position[0], self.position[1]],
         [output.targetX, output.targetY],
@@ -208,7 +208,7 @@ export function simulateBattle(
                 damageType: w.damageType,
               })
               self.flux += w.fluxPerShot
-              playerCooldowns[i].set(w.id, Math.round(600 / w.fireRate / 0.1))
+              playerCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
             }
           }
         }
@@ -232,8 +232,8 @@ export function simulateBattle(
         weaponRanges,
       })
 
-      self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 100
-      self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 100
+      self.position[0] += (output.targetX - self.position[0]) * 0.1 * hull.baseStats.speed / 40
+      self.position[1] += (output.targetY - self.position[1]) * 0.1 * hull.baseStats.speed / 40
       self.rotation = angleTo(
         [self.position[0], self.position[1]],
         [output.targetX, output.targetY],
@@ -270,7 +270,7 @@ export function simulateBattle(
                 damageType: w.damageType,
               })
               self.flux += w.fluxPerShot
-              enemyCooldowns[i].set(w.id, Math.round(600 / w.fireRate / 0.1))
+              enemyCooldowns[i].set(w.id, Math.round(600 / w.fireRate))
             }
           }
         }

@@ -38,11 +38,14 @@ export function runShipAI(input: AIInput): AIOutput {
     }
   }
 
-  // Find max weapon range
-  let maxRange = 300
+  // Use average weapon range for positioning (not max, to keep short-range weapons useful)
+  let avgRange = 5
+  let count = 0
   for (const [, range] of weaponRanges) {
-    if (range > maxRange) maxRange = range
+    avgRange += range
+    count++
   }
+  if (count > 0) avgRange /= count
 
   const angleToTarget = angleTo(
     [self.position[0], self.position[1]],
@@ -62,10 +65,10 @@ export function runShipAI(input: AIInput): AIOutput {
     targetY = self.position[1] - Math.sin(angleToTarget) * 0.5
   }
   // Enemy in range → fire and manage distance
-  else if (closestDist < maxRange * 1.1) {
+  else if (closestDist < avgRange * 1.1) {
     wantFire = true
-    // Optimal distance: 70% of max range
-    const optimalDist = maxRange * 0.7
+    // Optimal distance: 70% of average range
+    const optimalDist = avgRange * 0.7
     if (closestDist > optimalDist) {
       // Close in
       targetX = self.position[0] + Math.cos(angleToTarget) * 0.3
